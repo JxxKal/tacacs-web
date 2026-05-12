@@ -84,9 +84,10 @@ def handle(req: dict[int, str]) -> None:
         req[AV_TACPROFILE] = PERMIT_ALL_PROFILE
         req[AV_RESULT] = RESULT_OK
     elif tactype == "HOST":
-        # Hosts are declared statically in tac_plus-ng.cfg in M2; tell MAVIS
-        # we don't know the host so the daemon falls back to the static block.
-        req[AV_RESULT] = RESULT_NOTFOUND
+        # M2 hosts are declared statically in tac_plus-ng.cfg. We just need to
+        # tell MAVIS the host is accepted; we don't return any extra TACPROFILE
+        # so the daemon uses what the static block already configured.
+        req[AV_RESULT] = RESULT_OK
     else:
         req[AV_RESULT] = RESULT_FAIL
     write_response(req)
