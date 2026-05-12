@@ -19,7 +19,7 @@ id = tac_plus-ng {
     accounting log = acctlog
     access log = acctlog
 
-    mavis module = external {
+    mavis module tacacs-web = external {
         exec = /opt/tacacs-web/mavis_child.py
     }
     user backend = mavis
