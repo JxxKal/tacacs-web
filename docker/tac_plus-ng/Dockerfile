@@ -25,8 +25,11 @@ WORKDIR /src
 RUN curl -fsSL "https://github.com/MarcJHuber/event-driven-servers/archive/${EDS_REF}.tar.gz" \
         | tar -xzf - --strip-components=1 \
     && ./configure tac_plus-ng spawnd \
-    && make -j"$(nproc)" \
+    && make \
     && make install
+# `make -j` races on shared object files when building both tac_plus-ng + spawnd
+# (upstream Makefile bug, observed in commit 6221675a). Sequential build is fine
+# — total wall time on a 4-core CI runner is ~30s anyway.
 
 FROM debian:bookworm-slim
 ENV DEBIAN_FRONTEND=noninteractive \
