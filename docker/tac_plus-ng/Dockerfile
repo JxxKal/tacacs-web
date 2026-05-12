@@ -51,6 +51,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=build /usr/local/sbin/spawnd /usr/local/sbin/spawnd
 COPY --from=build /usr/local/sbin/tac_plus-ng /usr/local/sbin/tac_plus-ng
+# libmavis.so + loadable MAVIS modules (e.g. libmavis_external.so) live here
+# and are dlopen()'d at runtime by the daemon.
+COPY --from=build /usr/local/lib /usr/local/lib
 
 COPY docker/tac_plus-ng/tac_plus-ng.cfg.template /etc/tac_plus-ng/tac_plus-ng.cfg.template
 COPY docker/tac_plus-ng/entrypoint.sh /usr/local/bin/entrypoint
