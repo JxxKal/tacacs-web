@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /src
 RUN curl -fsSL "https://github.com/MarcJHuber/event-driven-servers/archive/${EDS_REF}.tar.gz" \
         | tar -xzf - --strip-components=1 \
-    && ./configure tac_plus-ng \
+    && ./configure tac_plus-ng spawnd \
     && make -j"$(nproc)" \
     && make install
 
