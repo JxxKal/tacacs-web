@@ -42,6 +42,13 @@ MAVIS_FINAL = 0
 PERMIT_ALL_PROFILE = """{
     profile {
         script {
+            if (service == shell) {
+                if (cmd == "") {
+                    set priv-lvl = 15
+                    permit
+                }
+                permit
+            }
             permit
         }
     }
