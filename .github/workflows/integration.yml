@@ -35,7 +35,14 @@ jobs:
           TACACS_BIND_ADDR: 127.0.0.1
           HTTP_BIND_ADDR: 127.0.0.1
           HTTPS_BIND_ADDR: 127.0.0.1
-        run: docker compose -f docker/compose.yml up -d --wait db backend tac_plus-ng
+        # No --wait: the tac_plus-ng healthcheck is flaky in M2 (spawnd's
+        # single-process mode interacts oddly with nc); the smoke script
+        # has its own port-readiness retry, and we wait on db + backend
+        # via depends_on conditions.
+        run: docker compose -f docker/compose.yml up -d db backend tac_plus-ng
+
+      - name: container state
+        run: docker compose -f docker/compose.yml ps -a
 
       - name: smoke - TACACS+ authn round trip
         env:
