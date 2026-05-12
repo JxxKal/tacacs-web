@@ -43,10 +43,10 @@ class Settings(BaseSettings):
     def master_key(self) -> bytes:
         if self.master_key_file is None:
             raise RuntimeError("master_key_file is not configured")
-        raw = self.master_key_file.read_bytes().strip()
+        raw = self.master_key_file.read_bytes()
         if len(raw) == 32:
             return raw
-        decoded = base64.b64decode(raw)
+        decoded = base64.b64decode(raw.strip())
         if len(decoded) != 32:
             raise ValueError("master_key_file must contain 32 bytes (raw or base64-encoded)")
         return decoded
