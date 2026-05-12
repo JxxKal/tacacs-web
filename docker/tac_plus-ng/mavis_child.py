@@ -66,12 +66,12 @@ def write_response(av: dict[int, str], result: str) -> None:
 
 def handle(req: dict[int, str]) -> None:
     tactype = req.get(AV_TACTYPE, "")
-    # M2 stub: accept every AUTH request. INFO/HOST/etc. also accepted so the
-    # daemon can complete its protocol dance without spurious NAKs.
-    if tactype in {"AUTH", "INFO", "HOST"}:
-        write_response(req, "ACK")
-    else:
-        write_response(req, "ACK")
+    # M2 stub: accept everything, and bind every user to the `admin`
+    # profile defined in tac_plus-ng.cfg so the shell login isn't denied
+    # by the default ACL.
+    if tactype in {"AUTH", "INFO"}:
+        req[AV_TACMEMBER] = "admin"
+    write_response(req, "ACK")
 
 
 def main() -> int:
