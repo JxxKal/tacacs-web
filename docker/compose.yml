@@ -51,7 +51,6 @@ services:
       - postgres_password
       - master_key
     volumes:
-      - tacacs-acct:/var/log/tac_plus-ng:ro
       - tls-state:/var/lib/tacacs-web/tls
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz/ready"]
@@ -79,8 +78,8 @@ services:
     secrets:
       - postgres_password
       - master_key
-    volumes:
-      - tacacs-acct:/var/log/tac_plus-ng
+    # M6 will mount tacacs-acct here once the accounting-ingestor lands; for M2
+    # the tac_plus-ng container has no accounting output configured.
     ports:
       - "${TACACS_BIND_ADDR:-0.0.0.0}:49:49/tcp"
     healthcheck:
@@ -125,7 +124,6 @@ secrets:
 
 volumes:
   postgres-data:
-  tacacs-acct:
   tls-state:
 
 networks:

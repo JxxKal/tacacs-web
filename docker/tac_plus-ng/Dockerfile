@@ -36,6 +36,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+        busybox \
         ca-certificates \
         gettext-base \
         libc-ares2 \
@@ -46,8 +47,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g 1000 tacacs \
     && useradd -u 1000 -g 1000 -d /var/lib/tac_plus-ng -m -s /usr/sbin/nologin tacacs \
-    && mkdir -p /var/log/tac_plus-ng /etc/tac_plus-ng /opt/tacacs-web \
-    && chown 1000:1000 /var/log/tac_plus-ng /etc/tac_plus-ng /opt/tacacs-web
+    && mkdir -p /var/log/tac_plus-ng /etc/tac_plus-ng /opt/tacacs-web /run/syslog \
+    && chown 1000:1000 /var/log/tac_plus-ng /etc/tac_plus-ng /opt/tacacs-web /run/syslog
 
 COPY --from=build /usr/local/sbin/spawnd /usr/local/sbin/spawnd
 COPY --from=build /usr/local/sbin/tac_plus-ng /usr/local/sbin/tac_plus-ng
