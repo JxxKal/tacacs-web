@@ -83,17 +83,14 @@ def write_response(av: dict[int, str]) -> None:
 
 def handle(req: dict[int, str]) -> None:
     tactype = req.get(AV_TACTYPE, "")
-    if tactype == "AUTH":
-        # M2 stub: accept any password. M3 will run a live LDAPS bind here.
-        req[AV_RESULT] = RESULT_OK
-    elif tactype == "INFO":
-        # Hand back a permit-everything inline profile.
+    if tactype in {"AUTH", "INFO", "CHPW"}:
+        # User lookup or password check — both get the permit-everything
+        # inline profile so the daemon's ACL evaluation lets the session in.
         req[AV_TACPROFILE] = PERMIT_ALL_PROFILE
         req[AV_RESULT] = RESULT_OK
     elif tactype == "HOST":
-        # M2 hosts are declared statically in tac_plus-ng.cfg. We just need to
-        # tell MAVIS the host is accepted; we don't return any extra TACPROFILE
-        # so the daemon uses what the static block already configured.
+        # M2 hosts are declared statically in tac_plus-ng.cfg. ACK without
+        # a TACPROFILE so the daemon uses the static host block as-is.
         req[AV_RESULT] = RESULT_OK
     else:
         req[AV_RESULT] = RESULT_FAIL
