@@ -27,8 +27,22 @@ sleep 1
 echo "[entrypoint] /usr/local/sbin listing:" >&2
 ls -laL /usr/local/sbin >&2 || true
 
-# `-1` selects single-process / "degraded" mode: spawnd accepts on the
-# socket AND processes requests inside one process, with no re-exec of a
-# worker child. Sidesteps the recursive-exec guard that fired in M2.
+echo "[entrypoint] tac_plus-ng -h:" >&2
+/usr/local/sbin/tac_plus-ng -h 2>&1 | head -30 >&2 || true
+
+# Make spawnd's `/proc/self/exe` resolution point at tac_plus-ng. Upstream
+# spawnd execs its own binary to start the worker; in our two-binary build
+# the worker logic lives in tac_plus-ng. Replacing spawnd with a copy of
+# tac_plus-ng (or symlink) makes /proc/self/exe → tac_plus-ng for the
+# worker exec, which matches what spawnd is checking. Symlink keeps both
+# names available.
+if [ ! -L /usr/local/sbin/spawnd.orig ]; then
+    cp /usr/local/sbin/spawnd /usr/local/sbin/spawnd.orig
+    ln -sf /usr/local/sbin/tac_plus-ng /usr/local/sbin/spawnd-as-tacplus
+fi
+
+# `-1` selects single-process / "degraded" mode. Keep it for now even though
+# spawnd silently exits after the listener binds — the M2 smoke needs
+# something serving on port 49.
 echo "[entrypoint] exec: /usr/local/sbin/spawnd -d 1 -f -1 $CFG_OUT" >&2
 exec /usr/local/sbin/spawnd -d 1 -f -1 "$CFG_OUT"
