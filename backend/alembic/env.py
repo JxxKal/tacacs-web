@@ -12,10 +12,8 @@ from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 from app.core.config import settings
+from app.db import models  # noqa: F401  (registers ORM models on Base.metadata)
 from app.db.base import Base
-
-# Importing models registers them on Base.metadata; add new model modules here
-# once M4 lands them, e.g. `from app.db import models`.
 
 config = context.config
 
