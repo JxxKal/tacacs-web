@@ -49,7 +49,15 @@ jobs:
       - name: smoke - backend health
         run: docker compose -f docker/compose.yml exec -T backend curl -fsS http://localhost:8000/healthz/live
 
-      - name: compose logs on failure
+      - name: compose ps on failure
+        if: failure()
+        run: docker compose -f docker/compose.yml ps -a
+
+      - name: tac_plus-ng logs on failure
+        if: failure()
+        run: docker compose -f docker/compose.yml logs --no-color tac_plus-ng
+
+      - name: full compose logs on failure
         if: failure()
         run: docker compose -f docker/compose.yml logs --no-color
 
