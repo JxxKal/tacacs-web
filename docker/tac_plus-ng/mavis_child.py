@@ -2,37 +2,50 @@
 """MAVIS external child for tac_plus-ng (M2 stub).
 
 Long-lived child spawned by `tac_plus-ng`. Reads MAVIS request packets on
-stdin, writes responses on stdout. For now (M2) every authentication request
-is answered with RESULT=ACK so the smoke test can verify the end-to-end
-TACACS+ <-> daemon <-> MAVIS round trip. No DB or LDAP yet — those land
-in M3.
+stdin, writes responses on stdout. For M2 every user is accepted with a
+permit-everything profile so the smoke test can complete an authn round
+trip. M3 swaps in real DB + LDAPS lookups and per-user profiles.
 
-Wire protocol (see `mavis/python/mavis.py` in MarcJHuber/event-driven-servers):
+Wire protocol reference:
+  mavis/perl/Mavis.pm and mavis/perl/mavis_tacplus-ng-demo-database.pl
+  in MarcJHuber/event-driven-servers.
 
-    Request from daemon:
-        <int_index> <value>\\n   (one per AV-pair)
-        =\\n                     (terminator)
-
-    Response to daemon:
-        <int_index> <value>\\n
-        =<verdict>\\n            (verdict 0 = MAVIS_FINAL)
-
-AV-pair indices we touch here: 0=TYPE 4=USER 6=RESULT 8=PASSWORD
-32=USER_RESPONSE 49=TACTYPE.
+Each request is `<int_index> <value>\\n` lines terminated by `=\\n`.
+Response uses the same format and terminates with `=<verdict>\\n` where
+verdict 0 = MAVIS_FINAL.
 """
 
 from __future__ import annotations
 
 import sys
 
+# AV-pair indices.
 AV_TYPE = 0
 AV_USER = 4
 AV_RESULT = 6
 AV_PASSWORD = 8
 AV_USER_RESPONSE = 32
+AV_TACPROFILE = 48
 AV_TACTYPE = 49
 
+# Result codes.
+RESULT_OK = "ACK"
+RESULT_FAIL = "NAK"
+RESULT_NOTFOUND = "NFD"
+RESULT_ERROR = "ERR"
+
 MAVIS_FINAL = 0
+
+# tac_plus-ng config snippet returned for every INFO lookup in M2. Binds the
+# user to a profile that permits any shell session. Newlines are converted
+# to CR on the wire (protocol convention), the daemon decodes them back.
+PERMIT_ALL_PROFILE = """{
+    profile {
+        script {
+            permit
+        }
+    }
+}"""
 
 
 def read_request() -> dict[int, str] | None:
@@ -53,11 +66,8 @@ def read_request() -> dict[int, str] | None:
         req[idx] = value
 
 
-def write_response(av: dict[int, str], result: str) -> None:
-    """Send an ACK/NAK/ERR response back to the daemon."""
-    av[AV_RESULT] = result
+def write_response(av: dict[int, str]) -> None:
     for idx in sorted(av):
-        # Newlines in values are escaped to CR per protocol convention.
         value = av[idx].replace("\n", "\r")
         sys.stdout.write(f"{idx} {value}\n")
     sys.stdout.write(f"={MAVIS_FINAL}\n")
@@ -66,12 +76,20 @@ def write_response(av: dict[int, str], result: str) -> None:
 
 def handle(req: dict[int, str]) -> None:
     tactype = req.get(AV_TACTYPE, "")
-    # M2 stub: accept everything, and bind every user to the `admin`
-    # profile defined in tac_plus-ng.cfg so the shell login isn't denied
-    # by the default ACL.
-    if tactype in {"AUTH", "INFO"}:
-        req[AV_TACMEMBER] = "admin"
-    write_response(req, "ACK")
+    if tactype == "AUTH":
+        # M2 stub: accept any password. M3 will run a live LDAPS bind here.
+        req[AV_RESULT] = RESULT_OK
+    elif tactype == "INFO":
+        # Hand back a permit-everything inline profile.
+        req[AV_TACPROFILE] = PERMIT_ALL_PROFILE
+        req[AV_RESULT] = RESULT_OK
+    elif tactype == "HOST":
+        # Hosts are declared statically in tac_plus-ng.cfg in M2; tell MAVIS
+        # we don't know the host so the daemon falls back to the static block.
+        req[AV_RESULT] = RESULT_NOTFOUND
+    else:
+        req[AV_RESULT] = RESULT_FAIL
+    write_response(req)
 
 
 def main() -> int:
