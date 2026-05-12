@@ -62,6 +62,7 @@ COPY docker/tac_plus-ng/mavis_child.py /opt/tacacs-web/mavis_child.py
 
 RUN chmod 0755 /usr/local/bin/entrypoint /opt/tacacs-web/mavis_child.py
 
-USER 1000:1000
+# TODO(M7): drop privileges to uid 1000 once we have a clean syslog setup
+# and have proven cap_net_bind_service works without UID 0. M2 stays root.
 EXPOSE 49/tcp
 ENTRYPOINT ["/usr/local/bin/entrypoint"]

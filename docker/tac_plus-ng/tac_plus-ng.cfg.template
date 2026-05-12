@@ -4,13 +4,16 @@
 # - All authentication/authorization decisions are delegated to an external
 #   MAVIS module (a Python child process)
 # - One catch-all host block accepts any NAS source IP with one shared secret
-#   (M4 narrows this to per-Device entries from the app DB)
-# - No file-based access/accounting log here; M6 wires the ingestor pipeline
+# - A small `profile admin` makes the shell session reachable for the smoke
+#   test; M4 returns per-user profiles dynamically from MAVIS instead
 
 id = spawnd {
     background = no
     listen { port = 49 }
-    spawn { instances min = 1  instances max = 1 }
+    spawn {
+        instances min = 1
+        instances max = 1
+    }
 }
 
 id = tac_plus-ng {
@@ -18,12 +21,21 @@ id = tac_plus-ng {
         exec = /opt/tacacs-web/mavis_child.py
     }
     user backend = mavis
-    login backend = mavis
+    login backend = mavis chpass
     pap backend = mavis
 
     host any_nas {
         address = 0.0.0.0/0
         key = "${TACACS_SHARED_SECRET}"
         mavis backend = yes
+    }
+
+    profile admin {
+        script {
+            if (service == shell) {
+                if (cmd == "") set priv-lvl = 15
+                permit
+            }
+        }
     }
 }
