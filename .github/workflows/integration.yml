@@ -36,5 +36,5 @@ jobs:
       # - name: smoke — backend health
       #   run: curl -fsSk https://localhost:8443/healthz/ready
 
-      - name: placeholder (M2 — fill in once tac_plus-ng + mavis land)
-        run: echo "TODO: compose smoke test"
+      - name: placeholder
+        run: echo 'M2 fills in compose smoke once tac_plus-ng and mavis land'
