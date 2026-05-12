@@ -49,14 +49,26 @@ def main() -> int:
 
     print(f"... waiting for {host}:{port}")
     wait_for_port(host, port, deadline_s=60.0)
-    print(f"... connected, sending TACACS+ authn for user={user!r}")
+    print(f"... connected; trying TACACS+ authn for user={user!r}")
 
+    # Docker's userland proxy accepts a TCP connection even before the
+    # daemon inside the container is ready, then resets the stream once
+    # the backend isn't reachable. Retry the auth until the daemon is
+    # actually serving.
     client = TACACSClient(host, port, secret, timeout=10)
-    try:
-        result = client.authenticate(user, password)
-    except Exception as exc:
+    deadline = time.monotonic() + 60.0
+    last_exc: Exception | None = None
+    while time.monotonic() < deadline:
+        try:
+            result = client.authenticate(user, password)
+            break
+        except (ConnectionResetError, ConnectionRefusedError, OSError) as exc:
+            last_exc = exc
+            print(f"... transient: {exc.__class__.__name__}: {exc}; retrying", file=sys.stderr)
+            time.sleep(2)
+    else:
         print(
-            f"FAIL: TACACS authenticate raised {exc.__class__.__name__}: {exc}",
+            f"FAIL: authenticate kept failing for 60s (last error: {last_exc!r})",
             file=sys.stderr,
         )
         return 1
