@@ -1,0 +1,40 @@
+name: integration
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  compose-smoke:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: bootstrap secrets
+        run: |
+          mkdir -p secrets
+          openssl rand -base64 32 > secrets/master.key
+          openssl rand -base64 24 > secrets/postgres_password
+
+      # - name: compose up
+      #   working-directory: docker
+      #   run: docker compose --env-file ../docker/.env.example up -d --build
+      #
+      # - name: wait for healthy
+      #   run: |
+      #     for i in $(seq 1 30); do
+      #       unhealthy=$(docker ps --format '{{.Names}} {{.Status}}' | grep -v healthy | grep tacacs || true)
+      #       [ -z "$unhealthy" ] && break
+      #       sleep 5
+      #     done
+      #     docker ps
+      #
+      # - name: smoke — TACACS authn against tac_plus-ng stub
+      #   run: ./scripts/smoke-tacacs.sh
+      #
+      # - name: smoke — backend health
+      #   run: curl -fsSk https://localhost:8443/healthz/ready
+
+      - name: placeholder (M2 — fill in once tac_plus-ng + mavis land)
+        run: echo "TODO: compose smoke test"

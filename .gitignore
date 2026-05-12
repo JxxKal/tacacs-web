@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+.vite/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Secrets and local state
+.env
+.env.local
+*.pem
+*.key
+*.crt
+secrets/
+!docker/**/secrets.example/
+master.key
+
+# Docker / runtime
+postgres-data/
+backups/
+tacacs-logs/
+
+# Alembic generated revision drafts (not the merged ones)
+backend/alembic/versions/*_draft_*.py

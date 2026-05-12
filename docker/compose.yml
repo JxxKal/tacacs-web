@@ -1,0 +1,132 @@
+# tacacs-web stack — single-host Docker Compose deployment.
+#
+# Bootstrap requirements before the first `docker compose up`:
+#   1. Generate a master key:    openssl rand -base64 32 > ./secrets/master.key
+#   2. Pick DB + base URL env in .env  (see .env.example)
+#
+# All services log structured JSON on stdout.
+
+name: tacacs-web
+
+x-common-env: &common-env
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  TZ: ${TZ:-UTC}
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      POSTGRES_DB: ${POSTGRES_DB:-tacacs}
+      POSTGRES_USER: ${POSTGRES_USER:-tacacs}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tacacs} -d ${POSTGRES_DB:-tacacs}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - internal
+
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-tacacs}@db:5432/${POSTGRES_DB:-tacacs}
+      DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
+      MASTER_KEY_FILE: /run/secrets/master_key
+      BASE_URL: ${BASE_URL:-https://localhost:8443}
+    secrets:
+      - postgres_password
+      - master_key
+    volumes:
+      - tacacs-acct:/var/log/tac_plus-ng:ro
+      - tls-state:/var/lib/tacacs-web/tls
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - internal
+
+  tac_plus-ng:
+    build:
+      context: ..
+      dockerfile: docker/tac_plus-ng/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-tacacs}@db:5432/${POSTGRES_DB:-tacacs}
+      DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
+      MASTER_KEY_FILE: /run/secrets/master_key
+    secrets:
+      - postgres_password
+      - master_key
+    volumes:
+      - tacacs-acct:/var/log/tac_plus-ng
+    ports:
+      - "${TACACS_BIND_ADDR:-0.0.0.0}:49:49/tcp"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 49 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - internal
+
+  nginx:
+    build:
+      context: ..
+      dockerfile: docker/nginx/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      UPSTREAM_BACKEND: backend:8000
+    volumes:
+      - tls-state:/etc/nginx/tls:ro
+    ports:
+      - "${HTTP_BIND_ADDR:-0.0.0.0}:8080:8080"
+      - "${HTTPS_BIND_ADDR:-0.0.0.0}:8443:8443"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-k", "https://localhost:8443/healthz/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - internal
+
+secrets:
+  master_key:
+    file: ../secrets/master.key
+  postgres_password:
+    file: ../secrets/postgres_password
+
+volumes:
+  postgres-data:
+  tacacs-acct:
+  tls-state:
+
+networks:
+  internal:
+    driver: bridge
