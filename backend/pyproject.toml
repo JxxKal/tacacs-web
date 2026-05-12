@@ -16,6 +16,7 @@ dependencies = [
     "pydantic-settings>=2.6",
     "structlog>=24.4",
     "cryptography>=43",
+    "ldap3>=2.9",
 ]
 
 [project.optional-dependencies]
