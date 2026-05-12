@@ -24,5 +24,11 @@ echo "[entrypoint] syslogd pid=$SYSLOG_PID" >&2
 # Tiny pause so the syslog socket is ready before spawnd starts.
 sleep 1
 
-echo "[entrypoint] exec: /usr/local/sbin/spawnd -d 1 -f $CFG_OUT" >&2
-exec /usr/local/sbin/spawnd -d 1 -f "$CFG_OUT"
+echo "[entrypoint] /usr/local/sbin listing:" >&2
+ls -laL /usr/local/sbin >&2 || true
+
+# `-1` selects single-process / "degraded" mode: spawnd accepts on the
+# socket AND processes requests inside one process, with no re-exec of a
+# worker child. Sidesteps the recursive-exec guard that fired in M2.
+echo "[entrypoint] exec: /usr/local/sbin/spawnd -d 1 -f -1 $CFG_OUT" >&2
+exec /usr/local/sbin/spawnd -d 1 -f -1 "$CFG_OUT"
