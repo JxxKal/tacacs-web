@@ -1,48 +1,60 @@
-# tac_plus-ng built from source. Pinned upstream tag set at build time via ARG.
+# tac_plus-ng built from source (Marc Huber's event-driven-servers).
+# Upstream: https://github.com/MarcJHuber/event-driven-servers
+# License:  BSD-style (see upstream tac_plus-ng/COPYING)
 #
-# Upstream:  https://www.pro-bono-publico.de/projects/tac_plus-ng.html
-# License:   See upstream NOTICE; bundled in /opt/tac_plus-ng/NOTICE in the final image.
-#
-# This Dockerfile is a stub for M1; M2 fills in the real build + entrypoint.
+# The build is pinned to a specific upstream commit since the project
+# publishes no git tags. Bump EDS_REF to roll forward.
+
+ARG EDS_REF=6221675ac4758d3c450dc047cdaec4068aefae96
 
 FROM debian:bookworm-slim AS build
-
-ARG TAC_PLUS_NG_VERSION=DEVEL.202601
+ARG EDS_REF
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
         curl \
-        libssl-dev \
-        libldap2-dev \
+        libc-ares-dev \
         libpcre2-dev \
-        zlib1g-dev \
+        libssl-dev \
+        perl \
     && rm -rf /var/lib/apt/lists/*
 
-# TODO(M2): fetch + verify + ./configure + make + make install for ${TAC_PLUS_NG_VERSION}
-# Build artifact path: /opt/tac_plus-ng
+WORKDIR /src
+RUN curl -fsSL "https://github.com/MarcJHuber/event-driven-servers/archive/${EDS_REF}.tar.gz" \
+        | tar -xzf - --strip-components=1 \
+    && ./configure tac_plus-ng \
+    && make -j"$(nproc)" \
+    && make install
 
 FROM debian:bookworm-slim
-ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
+        gettext-base \
+        libc-ares2 \
         libpcre2-8-0 \
-        libldap-2.5-0 \
+        libssl3 \
         netcat-openbsd \
         python3 \
-        python3-pip \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g 1000 tacacs \
-    && useradd -u 1000 -g 1000 -d /var/lib/tac_plus-ng -m -s /usr/sbin/nologin tacacs
+    && useradd -u 1000 -g 1000 -d /var/lib/tac_plus-ng -m -s /usr/sbin/nologin tacacs \
+    && mkdir -p /var/log/tac_plus-ng /etc/tac_plus-ng /opt/tacacs-web \
+    && chown 1000:1000 /var/log/tac_plus-ng /etc/tac_plus-ng /opt/tacacs-web
 
-# COPY --from=build /opt/tac_plus-ng /opt/tac_plus-ng
-# COPY docker/tac_plus-ng/entrypoint.sh /usr/local/bin/entrypoint
-# COPY docker/tac_plus-ng/tac_plus-ng.cfg.template /etc/tac_plus-ng/tac_plus-ng.cfg.template
-# COPY backend/app/mavis /opt/mavis
+COPY --from=build /usr/local/sbin/spawnd /usr/local/sbin/spawnd
+COPY --from=build /usr/local/sbin/tac_plus-ng /usr/local/sbin/tac_plus-ng
+
+COPY docker/tac_plus-ng/tac_plus-ng.cfg.template /etc/tac_plus-ng/tac_plus-ng.cfg.template
+COPY docker/tac_plus-ng/entrypoint.sh /usr/local/bin/entrypoint
+COPY docker/tac_plus-ng/mavis_child.py /opt/tacacs-web/mavis_child.py
+
+RUN chmod 0755 /usr/local/bin/entrypoint /opt/tacacs-web/mavis_child.py
 
 USER 1000:1000
 EXPOSE 49/tcp
-# ENTRYPOINT ["/usr/local/bin/entrypoint"]
-CMD ["sleep", "infinity"]  # M1 placeholder
+ENTRYPOINT ["/usr/local/bin/entrypoint"]

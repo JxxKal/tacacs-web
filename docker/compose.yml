@@ -68,10 +68,11 @@ services:
       dockerfile: docker/tac_plus-ng/Dockerfile
     restart: unless-stopped
     depends_on:
-      backend:
+      db:
         condition: service_healthy
     environment:
       <<: *common-env
+      TACACS_SHARED_SECRET: ${TACACS_SHARED_SECRET:?TACACS_SHARED_SECRET must be set (e.g. in .env)}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-tacacs}@db:5432/${POSTGRES_DB:-tacacs}
       DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
       MASTER_KEY_FILE: /run/secrets/master_key

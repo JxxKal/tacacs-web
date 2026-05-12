@@ -8,6 +8,9 @@ on:
 jobs:
   compose-smoke:
     runs-on: ubuntu-24.04
+    env:
+      TACACS_SHARED_SECRET: smoketest-shared-secret
+      POSTGRES_PASSWORD: smoketest-postgres
     steps:
       - uses: actions/checkout@v4
 
@@ -15,26 +18,41 @@ jobs:
         run: |
           mkdir -p secrets
           openssl rand -base64 32 > secrets/master.key
-          openssl rand -base64 24 > secrets/postgres_password
+          printf '%s' "$POSTGRES_PASSWORD" > secrets/postgres_password
 
-      # - name: compose up
-      #   working-directory: docker
-      #   run: docker compose --env-file ../docker/.env.example up -d --build
-      #
-      # - name: wait for healthy
-      #   run: |
-      #     for i in $(seq 1 30); do
-      #       unhealthy=$(docker ps --format '{{.Names}} {{.Status}}' | grep -v healthy | grep tacacs || true)
-      #       [ -z "$unhealthy" ] && break
-      #       sleep 5
-      #     done
-      #     docker ps
-      #
-      # - name: smoke — TACACS authn against tac_plus-ng stub
-      #   run: ./scripts/smoke-tacacs.sh
-      #
-      # - name: smoke — backend health
-      #   run: curl -fsSk https://localhost:8443/healthz/ready
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
 
-      - name: placeholder
-        run: echo 'M2 fills in compose smoke once tac_plus-ng and mavis land'
+      - name: install smoke deps
+        run: pip install tacacs_plus
+
+      - name: compose build
+        run: docker compose -f docker/compose.yml build db backend tac_plus-ng
+
+      - name: compose up (db + backend + tac_plus-ng)
+        env:
+          TACACS_BIND_ADDR: 127.0.0.1
+          HTTP_BIND_ADDR: 127.0.0.1
+          HTTPS_BIND_ADDR: 127.0.0.1
+        run: docker compose -f docker/compose.yml up -d --wait db backend tac_plus-ng
+
+      - name: smoke - TACACS+ authn round trip
+        env:
+          TACACS_HOST: 127.0.0.1
+          TACACS_PORT: 49
+          TACACS_SECRET: smoketest-shared-secret
+          TACACS_USER: smokeuser
+          TACACS_PASSWORD: anypass
+        run: python scripts/smoke-tacacs.py
+
+      - name: smoke - backend health
+        run: docker compose -f docker/compose.yml exec -T backend curl -fsS http://localhost:8000/healthz/live
+
+      - name: compose logs on failure
+        if: failure()
+        run: docker compose -f docker/compose.yml logs --no-color
+
+      - name: compose down
+        if: always()
+        run: docker compose -f docker/compose.yml down -v --remove-orphans

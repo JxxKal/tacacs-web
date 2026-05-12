@@ -1,0 +1,34 @@
+# Minimal tac_plus-ng configuration for M2.
+#
+# - spawnd accepts on TCP:49 and supervises one or more tac_plus-ng workers
+# - All authentication/authorization decisions are delegated to an external
+#   MAVIS module (a Python child process)
+# - One catch-all host block accepts any NAS source IP with one shared secret
+#   (M4 narrows this to per-Device entries from the app DB)
+
+id = spawnd {
+    background = no
+    listen { port = 49 }
+    spawn { instances min = 1  instances max = 4 }
+}
+
+id = tac_plus-ng {
+    log acctlog {
+        destination = /var/log/tac_plus-ng/acct.log
+    }
+    accounting log = acctlog
+    access log = acctlog
+
+    mavis module = external {
+        exec = /opt/tacacs-web/mavis_child.py
+    }
+    user backend = mavis
+    login backend = mavis
+    pap backend = mavis
+
+    host any_nas {
+        address = 0.0.0.0/0
+        key = "${TACACS_SHARED_SECRET}"
+        mavis backend = yes
+    }
+}
