@@ -4,7 +4,7 @@ Web-managed TACACS+ stack with Active Directory authentication. Built on `tac_pl
 
 ## Status
 
-Early development. Architecture decisions captured in [`docs/adr/`](docs/adr/); domain glossary and component overview in [`CONTEXT.md`](CONTEXT.md).
+Early development. Architecture decisions captured in [`docs/adr/`](docs/adr/); domain glossary and component overview in [`CONTEXT.md`](CONTEXT.md). End-to-end install walkthrough: [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## What this does
 
