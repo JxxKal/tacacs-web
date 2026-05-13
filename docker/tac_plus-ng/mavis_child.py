@@ -31,6 +31,8 @@ AV_TYPE = 0
 AV_USER = 4
 AV_RESULT = 6
 AV_PASSWORD = 8
+AV_IPADDR = 14
+AV_SERVERIP = 25
 AV_USER_RESPONSE = 32
 AV_TACPROFILE = 48
 AV_TACTYPE = 49
@@ -44,24 +46,6 @@ MAVIS_FINAL = 0
 
 BACKEND_URL = os.environ.get("TACACS_BACKEND_URL", "http://backend:8000").rstrip("/")
 HTTP_TIMEOUT = float(os.environ.get("TACACS_BACKEND_TIMEOUT", "10"))
-
-# Inline tac_plus-ng profile attached to every ACK'd AUTH. Permits any shell
-# command so the smoke test can complete an authn round trip. Per-user
-# profiles arrive in M4 once authz lands.
-PERMIT_ALL_PROFILE = """{
-    profile {
-        script {
-            if (service == shell) {
-                if (cmd == "") {
-                    set priv-lvl = 15
-                    permit
-                }
-                permit
-            }
-            permit
-        }
-    }
-}"""
 
 
 def read_request() -> dict[int, str] | None:
@@ -90,20 +74,21 @@ def write_response(av: dict[int, str]) -> None:
     sys.stdout.flush()
 
 
-def call_backend_auth(
-    username: str,
-    password: str,
+def _post_json(
+    path: str,
+    payload: dict[str, str],
     *,
     opener: object | None = None,
-) -> tuple[str, str | None]:
-    """POST one AUTH request to the backend. Returns (result, reason).
+) -> tuple[str, str | None, str | None]:
+    """POST `payload` as JSON to `BACKEND_URL + path`. Returns (result, reason, profile).
 
-    `opener` lets the unit tests inject `urllib.request.build_opener(...)`
-    to avoid hitting the network; if None we use the module-level urlopen.
+    `profile` is only set on `/info` responses; for `/auth` it's always None.
+    `opener` exists so unit tests can substitute an `OpenerDirector`-like
+    object and skip the network entirely.
     """
-    body = json.dumps({"username": username, "password": password}).encode("utf-8")
+    body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
-        f"{BACKEND_URL}/internal/mavis/auth",
+        f"{BACKEND_URL}{path}",
         data=body,
         method="POST",
         headers={"Content-Type": "application/json"},
@@ -111,17 +96,39 @@ def call_backend_auth(
     try:
         urlopen = opener.open if opener is not None else urllib.request.urlopen  # type: ignore[attr-defined]
         with urlopen(req, timeout=HTTP_TIMEOUT) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
+            response = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        return RESULT_ERROR, f"backend_http_{exc.code}"
+        return RESULT_ERROR, f"backend_http_{exc.code}", None
     except (urllib.error.URLError, OSError, ValueError) as exc:
-        return RESULT_ERROR, f"backend_unreachable: {exc.__class__.__name__}"
+        return RESULT_ERROR, f"backend_unreachable: {exc.__class__.__name__}", None
 
-    result = payload.get("result")
+    result = response.get("result")
     if result not in {RESULT_OK, RESULT_FAIL, RESULT_NOTFOUND, RESULT_ERROR}:
-        return RESULT_ERROR, "backend_bad_response"
-    reason = payload.get("reason")
-    return result, reason if isinstance(reason, str) else None
+        return RESULT_ERROR, "backend_bad_response", None
+    reason = response.get("reason") if isinstance(response.get("reason"), str) else None
+    profile = response.get("profile") if isinstance(response.get("profile"), str) else None
+    return result, reason, profile
+
+
+def call_backend_auth(
+    username: str, password: str, *, opener: object | None = None
+) -> tuple[str, str | None]:
+    result, reason, _profile = _post_json(
+        "/internal/mavis/auth",
+        {"username": username, "password": password},
+        opener=opener,
+    )
+    return result, reason
+
+
+def call_backend_info(
+    username: str, nas_ip: str, *, opener: object | None = None
+) -> tuple[str, str | None, str | None]:
+    return _post_json(
+        "/internal/mavis/info",
+        {"username": username, "nas_ip": nas_ip},
+        opener=opener,
+    )
 
 
 def handle(req: dict[int, str]) -> None:
@@ -131,15 +138,23 @@ def handle(req: dict[int, str]) -> None:
         password = req.get(AV_PASSWORD, "")
         result, _reason = call_backend_auth(username, password)
         req[AV_RESULT] = result
-        if result == RESULT_OK:
-            req[AV_TACPROFILE] = PERMIT_ALL_PROFILE
-    elif tactype in {"INFO", "CHPW"}:
-        # M4 will wire the per-user profile lookup. For now the daemon gets a
-        # permit-everything inline profile so any authn'd user can run shell.
-        req[AV_TACPROFILE] = PERMIT_ALL_PROFILE
-        req[AV_RESULT] = RESULT_OK
+        # AUTH no longer carries a profile; the daemon will INFO-lookup the
+        # user separately to fetch the per-NAS profile. Returning a profile
+        # here would be ignored at best, and risks shadowing the right one.
+    elif tactype == "INFO":
+        username = req.get(AV_USER, "")
+        nas_ip = req.get(AV_SERVERIP, "")
+        result, _reason, profile = call_backend_info(username, nas_ip)
+        req[AV_RESULT] = result
+        if result == RESULT_OK and profile is not None:
+            req[AV_TACPROFILE] = profile
+    elif tactype == "CHPW":
+        # Change-password isn't wired up yet; the daemon falls back without
+        # a profile when MAVIS says fail.
+        req[AV_RESULT] = RESULT_FAIL
     elif tactype == "HOST":
-        # NAS hosts are still declared statically in tac_plus-ng.cfg in M3.
+        # NAS hosts are still declared statically in tac_plus-ng.cfg; the
+        # NAS-config-regen flow that replaces this lands later in M4.
         req[AV_RESULT] = RESULT_OK
     else:
         req[AV_RESULT] = RESULT_FAIL

@@ -23,9 +23,17 @@ os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://nobody@127.0.0.1:1/t
 os.environ.setdefault("LOG_LEVEL", "WARNING")
 
 
+from collections.abc import AsyncIterator  # noqa: E402
+
 import pytest  # noqa: E402
+import pytest_asyncio  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.engine import Engine  # noqa: E402
+from sqlalchemy.ext.asyncio import (  # noqa: E402
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 
 from app.db import models  # noqa: E402, F401  (registers ORM models on Base.metadata)
@@ -51,3 +59,23 @@ def db_session(db_engine: Engine) -> Iterator[Session]:
         yield session
     finally:
         session.close()
+
+
+@pytest_asyncio.fixture
+async def async_db_session() -> AsyncIterator[AsyncSession]:
+    """Async SQLite session for endpoint integration tests.
+
+    Each test gets a fresh in-memory DB so write ordering between tests
+    can't leak. The session is bound to a single connection so the FastAPI
+    handler sees the same view as the test's bootstrap inserts.
+    """
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    session = factory()
+    try:
+        yield session
+    finally:
+        await session.close()
+        await engine.dispose()

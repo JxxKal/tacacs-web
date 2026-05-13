@@ -92,16 +92,18 @@ def test_call_backend_auth_bad_response_shape(mc: ModuleType) -> None:
     assert mc.call_backend_auth("jan", "x", opener=opener) == ("ERR", "backend_bad_response")
 
 
-def test_handle_auth_attaches_profile_on_ack(
+def test_handle_auth_no_profile_on_ack(
     mc: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # In M4 the daemon does a separate INFO lookup to get the profile; AUTH
+    # should return only the verdict, never a stale permit-everything block.
     monkeypatch.setattr(mc, "call_backend_auth", lambda u, p: ("ACK", None))
     out = _capture_response(mc, {mc.AV_TACTYPE: "AUTH", mc.AV_USER: "jan", mc.AV_PASSWORD: "x"})
     assert out[mc.AV_RESULT] == "ACK"
-    assert "permit" in out[mc.AV_TACPROFILE]
+    assert mc.AV_TACPROFILE not in out
 
 
-def test_handle_auth_no_profile_on_nak(
+def test_handle_auth_nak_no_profile(
     mc: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(mc, "call_backend_auth", lambda u, p: ("NAK", "wrong_password"))
@@ -110,10 +112,44 @@ def test_handle_auth_no_profile_on_nak(
     assert mc.AV_TACPROFILE not in out
 
 
-def test_handle_info_returns_profile(mc: ModuleType) -> None:
-    out = _capture_response(mc, {mc.AV_TACTYPE: "INFO", mc.AV_USER: "jan"})
+def test_handle_info_ack_attaches_profile(
+    mc: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: list[tuple[str, str]] = []
+
+    def fake_info(username: str, nas_ip: str, *, opener: object | None = None) -> tuple[str, str | None, str | None]:
+        captured.append((username, nas_ip))
+        return "ACK", None, "{ profile { script { permit } } }"
+
+    monkeypatch.setattr(mc, "call_backend_info", fake_info)
+    out = _capture_response(
+        mc,
+        {mc.AV_TACTYPE: "INFO", mc.AV_USER: "jan", mc.AV_SERVERIP: "10.1.2.3"},
+    )
     assert out[mc.AV_RESULT] == "ACK"
     assert "permit" in out[mc.AV_TACPROFILE]
+    assert captured == [("jan", "10.1.2.3")]
+
+
+def test_handle_info_nak_no_profile(
+    mc: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        mc,
+        "call_backend_info",
+        lambda u, n, *, opener=None: ("NAK", "no_authorization", None),
+    )
+    out = _capture_response(
+        mc,
+        {mc.AV_TACTYPE: "INFO", mc.AV_USER: "jan", mc.AV_SERVERIP: "10.1.2.3"},
+    )
+    assert out[mc.AV_RESULT] == "NAK"
+    assert mc.AV_TACPROFILE not in out
+
+
+def test_handle_chpw_fails(mc: ModuleType) -> None:
+    out = _capture_response(mc, {mc.AV_TACTYPE: "CHPW", mc.AV_USER: "jan"})
+    assert out[mc.AV_RESULT] == "NAK"
 
 
 def test_handle_host_ack_without_profile(mc: ModuleType) -> None:

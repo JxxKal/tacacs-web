@@ -86,6 +86,16 @@ jobs:
           EXPECT: REJECT
         run: python scripts/smoke-tacacs.py
 
+      - name: smoke - authz returns priv-lvl 15 for smokeuser
+        env:
+          TACACS_HOST: 127.0.0.1
+          TACACS_PORT: 49
+          TACACS_SECRET: smoketest-shared-secret
+          TACACS_USER: smokeuser
+          STEP: AUTHZ
+          EXPECT_PRIV_LVL: "15"
+        run: python scripts/smoke-tacacs.py
+
       - name: compose ps on failure
         if: failure()
         run: docker compose -f docker/compose.yml ps -a

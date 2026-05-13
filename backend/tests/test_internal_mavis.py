@@ -15,26 +15,54 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.auth import ldap_bind
-from app.db.models import SystemSetting, User
+from app.db.models import (
+    Authorization,
+    Device,
+    DeviceGroup,
+    PrivilegeProfile,
+    SystemSetting,
+    User,
+)
 from app.db.session import get_session
 from app.main import app
 
 
+class _FakeScalars:
+    def __init__(self, values: list[Any]) -> None:
+        self._values = values
+
+    def all(self) -> list[Any]:
+        return list(self._values)
+
+
 class _FakeResult:
+    """Stands in for SQLAlchemy `Result` — supports the two access modes we use.
+
+    `scalar_one_or_none()` for the singleton User/SystemSetting case;
+    `scalars().all()` for the list-of-rows case (devices, authorizations).
+    The fake auto-detects which mode a result is meant for: scalar mode if
+    the canned value is anything but a `list`; list mode if it's a `list`.
+    """
+
     def __init__(self, value: Any) -> None:
         self._value = value
 
     def scalar_one_or_none(self) -> Any:
         return self._value
 
+    def scalars(self) -> _FakeScalars:
+        if isinstance(self._value, list):
+            return _FakeScalars(self._value)
+        return _FakeScalars([self._value] if self._value is not None else [])
+
 
 class _FakeSession:
     """Yields results in the order the handler issues SELECTs.
 
-    The internal_mavis handler issues exactly two SELECTs per request:
-    first the User, then the SystemSetting for `ldap.url`. We hand back
-    results in that order; if the handler ever asks for more, the test
-    will trip on `IndexError` which is exactly the signal we want.
+    Auth flow issues 2 SELECTs (user, system_setting); info flow issues
+    3 (user with groups, devices, authorizations). We hand them back in
+    sequence; over-consumption trips `IndexError` so the test signals a
+    handler-shape regression loudly.
     """
 
     def __init__(self, results: list[Any]) -> None:
@@ -120,3 +148,98 @@ def test_empty_username_rejected_by_validation() -> None:
             "/internal/mavis/auth", json={"username": "", "password": "x"}
         )
     assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# /internal/mavis/info
+# ---------------------------------------------------------------------------
+
+
+def _make_user(*, user_id: int = 1, enabled: bool = True) -> User:
+    user = User(sam_account_name="jan", distinguished_name="cn=jan,dc=x", enabled=enabled)
+    user.id = user_id
+    user.groups = []
+    return user
+
+
+def _make_device(*, device_id: int = 1, ip: str = "10.0.0.0/8", dg_id: int = 1) -> Device:
+    d = Device(name="d1", ip_or_cidr=ip, device_group_id=dg_id)
+    d.id = device_id
+    d.device_group = DeviceGroup(name="dg1")
+    d.device_group.id = dg_id
+    return d
+
+
+def _make_authorization(*, user_id: int, dg_id: int, priv: int, auth_id: int = 1) -> Authorization:
+    p = PrivilegeProfile(
+        name="admin",
+        tacacs_priv_lvl=priv,
+        permit_commands_regex=[],
+        deny_commands_regex=[],
+        extra_av_pairs={},
+    )
+    p.id = 1
+    a = Authorization(
+        principal_user_id=user_id,
+        device_group_id=dg_id,
+        privilege_profile_id=p.id,
+    )
+    a.id = auth_id
+    a.privilege_profile = p
+    return a
+
+
+def test_info_unknown_user_returns_nfd() -> None:
+    _install_session([None])
+    with TestClient(app) as client:
+        response = client.post(
+            "/internal/mavis/info", json={"username": "ghost", "nas_ip": "10.1.1.1"}
+        )
+    assert response.json() == {"result": "NFD", "reason": "unknown_user", "profile": None}
+
+
+def test_info_disabled_user_returns_nak() -> None:
+    _install_session([_make_user(enabled=False)])
+    with TestClient(app) as client:
+        response = client.post(
+            "/internal/mavis/info", json={"username": "jan", "nas_ip": "10.1.1.1"}
+        )
+    assert response.json() == {"result": "NAK", "reason": "user_disabled", "profile": None}
+
+
+def test_info_unknown_nas_returns_nak() -> None:
+    user = _make_user(user_id=1)
+    _install_session([user, []])  # no devices
+    with TestClient(app) as client:
+        response = client.post(
+            "/internal/mavis/info", json={"username": "jan", "nas_ip": "10.1.1.1"}
+        )
+    assert response.json() == {"result": "NAK", "reason": "unknown_nas", "profile": None}
+
+
+def test_info_no_authorization_returns_nak() -> None:
+    user = _make_user(user_id=1)
+    device = _make_device(device_id=10, ip="10.0.0.0/8", dg_id=1)
+    _install_session([user, [device], []])  # no authorizations
+    with TestClient(app) as client:
+        response = client.post(
+            "/internal/mavis/info", json={"username": "jan", "nas_ip": "10.1.1.1"}
+        )
+    assert response.json() == {"result": "NAK", "reason": "no_authorization", "profile": None}
+
+
+def test_info_ack_returns_rendered_profile() -> None:
+    user = _make_user(user_id=1)
+    device = _make_device(device_id=10, ip="10.0.0.0/8", dg_id=1)
+    auth = _make_authorization(user_id=1, dg_id=1, priv=15)
+    _install_session([user, [device], [auth]])
+    with TestClient(app) as client:
+        response = client.post(
+            "/internal/mavis/info", json={"username": "jan", "nas_ip": "10.1.1.1"}
+        )
+    body = response.json()
+    assert body["result"] == "ACK"
+    assert body["reason"] is None
+    assert body["profile"] is not None
+    assert "set priv-lvl = 15" in body["profile"]
+    assert "if (service == shell)" in body["profile"]
