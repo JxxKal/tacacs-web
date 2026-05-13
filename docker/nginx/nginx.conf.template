@@ -1,0 +1,52 @@
+# tacacs-web reverse proxy + SPA host.
+# Rendered by the nginx upstream image's envsubst hook from
+# UPSTREAM_BACKEND. The template lives in /etc/nginx/templates/.
+
+server {
+    listen 8080;
+    server_name _;
+    # Force HTTPS for everything. The HTTP listener exists only to redirect
+    # so operators who type `http://host` end up on the secure URL.
+    return 301 https://$host:8443$request_uri;
+}
+
+server {
+    listen 8443 ssl;
+    http2 on;
+    server_name _;
+
+    ssl_certificate     /etc/nginx/tls/server.crt;
+    ssl_certificate_key /etc/nginx/tls/server.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+
+    # The session cookie is set with Secure + HttpOnly; HSTS keeps the
+    # browser on TLS once it's seen us.
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "no-referrer" always;
+
+    client_max_body_size 4m;
+
+    # Backend-facing routes. Each prefix proxies to the FastAPI app; the
+    # SPA fall-through below catches everything else.
+    location ~ ^/(api|login|logout|me|healthz)(/|$) {
+        proxy_pass http://${UPSTREAM_BACKEND};
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_read_timeout 30s;
+    }
+
+    # Vite-built SPA, served as static files. Any path that doesn't match
+    # the API prefixes returns index.html so the client-side router can
+    # take over (deep links to /device-groups etc).
+    root /usr/share/nginx/html;
+    index index.html;
+    location / {
+        try_files $uri /index.html;
+    }
+}

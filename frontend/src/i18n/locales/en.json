@@ -1,0 +1,58 @@
+{
+  "app": {
+    "title": "tacacs-web"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "deviceGroups": "Device groups",
+    "privilegeProfiles": "Privilege profiles",
+    "devices": "Devices",
+    "authorizations": "Authorizations",
+    "effectivePermissions": "Effective permissions",
+    "logout": "Log out"
+  },
+  "common": {
+    "loading": "Loading…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "confirm": "Confirm",
+    "actions": "Actions",
+    "name": "Name",
+    "description": "Description",
+    "id": "ID",
+    "language": "Language",
+    "error": "Error",
+    "errorMessage": "{{message}}",
+    "deleteConfirm": "Are you sure you want to delete {{name}}?",
+    "deleted": "{{name}} deleted",
+    "created": "{{name}} created",
+    "updated": "{{name}} updated"
+  },
+  "login": {
+    "title": "Sign in",
+    "breakGlassWarning": "Local break-glass admin login — use only when SAML is unavailable.",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Sign in",
+    "invalidCredentials": "Invalid username or password.",
+    "unexpectedError": "Sign-in failed. Try again."
+  },
+  "dashboard": {
+    "welcome": "Welcome, {{username}}",
+    "authMethod": "Authenticated via {{method}}",
+    "role": "Role: {{role}}"
+  },
+  "deviceGroups": {
+    "title": "Device groups",
+    "subtitle": "Flat groupings of network devices. Each device belongs to exactly one group.",
+    "createButton": "New device group",
+    "createTitle": "Create device group",
+    "editTitle": "Edit device group",
+    "namePlaceholder": "core-switches",
+    "descriptionPlaceholder": "Optional description",
+    "emptyState": "No device groups yet. Create one to start authorising users."
+  }
+}

@@ -123,7 +123,10 @@ services:
       <<: *common-env
       UPSTREAM_BACKEND: backend:8000
     volumes:
-      - tls-state:/etc/nginx/tls:ro
+      # Bootstrap entrypoint writes a self-signed cert here on first start;
+      # M7's upload flow also persists the operator-supplied cert through
+      # this volume. Mount rw so both code paths work.
+      - tls-state:/etc/nginx/tls
     ports:
       - "${HTTP_BIND_ADDR:-0.0.0.0}:8080:8080"
       - "${HTTPS_BIND_ADDR:-0.0.0.0}:8443:8443"

@@ -1,0 +1,58 @@
+{
+  "app": {
+    "title": "tacacs-web"
+  },
+  "nav": {
+    "dashboard": "Übersicht",
+    "deviceGroups": "Gerätegruppen",
+    "privilegeProfiles": "Berechtigungsprofile",
+    "devices": "Geräte",
+    "authorizations": "Berechtigungen",
+    "effectivePermissions": "Effektive Berechtigungen",
+    "logout": "Abmelden"
+  },
+  "common": {
+    "loading": "Lade…",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "create": "Anlegen",
+    "confirm": "Bestätigen",
+    "actions": "Aktionen",
+    "name": "Name",
+    "description": "Beschreibung",
+    "id": "ID",
+    "language": "Sprache",
+    "error": "Fehler",
+    "errorMessage": "{{message}}",
+    "deleteConfirm": "{{name}} wirklich löschen?",
+    "deleted": "{{name}} gelöscht",
+    "created": "{{name}} angelegt",
+    "updated": "{{name}} aktualisiert"
+  },
+  "login": {
+    "title": "Anmelden",
+    "breakGlassWarning": "Lokale Notfall-Admin-Anmeldung — nur verwenden, wenn SAML nicht verfügbar ist.",
+    "username": "Benutzername",
+    "password": "Passwort",
+    "submit": "Anmelden",
+    "invalidCredentials": "Benutzername oder Passwort ungültig.",
+    "unexpectedError": "Anmeldung fehlgeschlagen. Bitte erneut versuchen."
+  },
+  "dashboard": {
+    "welcome": "Willkommen, {{username}}",
+    "authMethod": "Angemeldet via {{method}}",
+    "role": "Rolle: {{role}}"
+  },
+  "deviceGroups": {
+    "title": "Gerätegruppen",
+    "subtitle": "Flache Gruppierung von Netzwerkgeräten. Jedes Gerät gehört zu genau einer Gruppe.",
+    "createButton": "Neue Gerätegruppe",
+    "createTitle": "Gerätegruppe anlegen",
+    "editTitle": "Gerätegruppe bearbeiten",
+    "namePlaceholder": "core-switches",
+    "descriptionPlaceholder": "Optionale Beschreibung",
+    "emptyState": "Noch keine Gerätegruppen. Lege eine an, um Benutzer zu autorisieren."
+  }
+}
