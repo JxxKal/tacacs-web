@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     )
     base_url: str = Field(default="https://localhost:8443")
     log_level: str = Field(default="INFO")
+    session_cookie_secure: bool = Field(
+        default=True,
+        description="Set Secure flag on the session cookie. Disable only for "
+        "HTTP-only test setups; production reverse proxy always serves HTTPS.",
+    )
 
     def database_password(self) -> str | None:
         if self.database_password_file is None:

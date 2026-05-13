@@ -15,16 +15,31 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.sessions import SessionContext, require_session
 from app.db.session import get_session
 from app.main import app
 
 
 @pytest.fixture
 def client(async_db_session: AsyncSession) -> Iterator[TestClient]:
-    async def _override() -> AsyncIterator[AsyncSession]:
+    async def _override_session() -> AsyncIterator[AsyncSession]:
         yield async_db_session
 
-    app.dependency_overrides[get_session] = _override
+    async def _override_require_session() -> SessionContext:
+        # CRUD tests assume an authenticated admin caller; the auth flow
+        # itself is covered separately in test_auth_local.
+        return SessionContext(
+            token="test-token",
+            username="test-admin",
+            role="admin",
+            auth_method="local",
+            actor_id=1,
+            client_ip="127.0.0.1",
+            user_agent="pytest",
+        )
+
+    app.dependency_overrides[get_session] = _override_session
+    app.dependency_overrides[require_session] = _override_require_session
     try:
         with TestClient(app) as c:
             yield c

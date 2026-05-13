@@ -21,6 +21,9 @@ _MASTER_KEY.write_bytes(base64.b64encode(_secrets.token_bytes(32)) + b"\n")
 os.environ.setdefault("MASTER_KEY_FILE", str(_MASTER_KEY))
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://nobody@127.0.0.1:1/tacacs_test")
 os.environ.setdefault("LOG_LEVEL", "WARNING")
+# Cookies emitted by Set-Cookie with Secure=true are stripped on http://;
+# tests run over http via TestClient, so opt out of Secure here.
+os.environ.setdefault("SESSION_COOKIE_SECURE", "false")
 
 
 from collections.abc import AsyncIterator  # noqa: E402
