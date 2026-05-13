@@ -46,10 +46,14 @@ def main() -> int:
     secret = os.environ.get("TACACS_SECRET", "smoketest-shared-secret")
     user = os.environ.get("TACACS_USER", "smokeuser")
     password = os.environ.get("TACACS_PASSWORD", "anypass")
+    expect = os.environ.get("EXPECT", "ACCEPT").upper()
+    if expect not in {"ACCEPT", "REJECT"}:
+        print(f"FAIL: EXPECT must be ACCEPT or REJECT, got {expect!r}", file=sys.stderr)
+        return 64
 
     print(f"... waiting for {host}:{port}")
     wait_for_port(host, port, deadline_s=60.0)
-    print(f"... connected; trying TACACS+ authn for user={user!r}")
+    print(f"... connected; trying TACACS+ authn for user={user!r} (expect={expect})")
 
     # Docker's userland proxy accepts a TCP connection even before the
     # daemon inside the container is ready, then resets the stream once
@@ -73,14 +77,24 @@ def main() -> int:
         )
         return 1
 
-    if not result.valid:
+    if expect == "ACCEPT":
+        if not result.valid:
+            print(
+                f"FAIL: expected ACCEPT but got status={result.status!r}",
+                file=sys.stderr,
+            )
+            return 2
+        print(f"OK: TACACS+ authn accepted user={user!r} status={result.status!r}")
+        return 0
+
+    # expect == REJECT
+    if result.valid:
         print(
-            f"FAIL: authenticate returned invalid (status={result.status!r})",
+            f"FAIL: expected REJECT but got status={result.status!r}",
             file=sys.stderr,
         )
-        return 2
-
-    print(f"OK: TACACS+ authn accepted user={user!r} status={result.status!r}")
+        return 3
+    print(f"OK: TACACS+ authn rejected user={user!r} status={result.status!r}")
     return 0
 
 

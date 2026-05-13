@@ -1,0 +1,156 @@
+"""Unit tests for `docker/tac_plus-ng/mavis_child.py`.
+
+The child runs in the tac_plus-ng container (stdlib-only Python) so its
+tests live here in the backend test suite but load the script by path
+rather than importing as `mavis_child` — there's no package, no install.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import io
+import json
+from collections.abc import Iterator
+from pathlib import Path
+from types import ModuleType
+from typing import Any
+
+import pytest
+
+
+def _load_mavis_child() -> ModuleType:
+    here = Path(__file__).resolve()
+    script = here.parents[2] / "docker" / "tac_plus-ng" / "mavis_child.py"
+    spec = importlib.util.spec_from_file_location("mavis_child_under_test", script)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture
+def mc() -> ModuleType:
+    return _load_mavis_child()
+
+
+class _FakeOpener:
+    """Mimics `urllib.request.OpenerDirector` with a canned response body."""
+
+    def __init__(self, payload: dict[str, Any], status: int = 200) -> None:
+        self.payload = payload
+        self.status = status
+        self.last_request: Any = None
+        self.last_timeout: float | None = None
+
+    def open(self, req: Any, timeout: float | None = None) -> Any:
+        self.last_request = req
+        self.last_timeout = timeout
+        body = json.dumps(self.payload).encode("utf-8")
+        return _FakeResponse(body)
+
+
+class _FakeResponse:
+    def __init__(self, body: bytes) -> None:
+        self._body = body
+
+    def __enter__(self) -> _FakeResponse:
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self._body
+
+
+def test_call_backend_auth_returns_ack(mc: ModuleType) -> None:
+    opener = _FakeOpener({"result": "ACK", "reason": None})
+    result, reason = mc.call_backend_auth("jan", "hunter2", opener=opener)
+    assert (result, reason) == ("ACK", None)
+    body = json.loads(opener.last_request.data.decode())
+    assert body == {"username": "jan", "password": "hunter2"}
+    assert opener.last_request.full_url.endswith("/internal/mavis/auth")
+
+
+def test_call_backend_auth_returns_nak(mc: ModuleType) -> None:
+    opener = _FakeOpener({"result": "NAK", "reason": "wrong_password"})
+    assert mc.call_backend_auth("jan", "nope", opener=opener) == ("NAK", "wrong_password")
+
+
+def test_call_backend_auth_unreachable(mc: ModuleType) -> None:
+    class Boom:
+        def open(self, _req: Any, timeout: float | None = None) -> Any:
+            raise OSError("connection refused")
+
+    result, reason = mc.call_backend_auth("jan", "x", opener=Boom())
+    assert result == "ERR"
+    assert reason and reason.startswith("backend_unreachable")
+
+
+def test_call_backend_auth_bad_response_shape(mc: ModuleType) -> None:
+    opener = _FakeOpener({"result": "WHAT"})
+    assert mc.call_backend_auth("jan", "x", opener=opener) == ("ERR", "backend_bad_response")
+
+
+def test_handle_auth_attaches_profile_on_ack(
+    mc: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(mc, "call_backend_auth", lambda u, p: ("ACK", None))
+    out = _capture_response(mc, {mc.AV_TACTYPE: "AUTH", mc.AV_USER: "jan", mc.AV_PASSWORD: "x"})
+    assert out[mc.AV_RESULT] == "ACK"
+    assert "permit" in out[mc.AV_TACPROFILE]
+
+
+def test_handle_auth_no_profile_on_nak(
+    mc: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(mc, "call_backend_auth", lambda u, p: ("NAK", "wrong_password"))
+    out = _capture_response(mc, {mc.AV_TACTYPE: "AUTH", mc.AV_USER: "jan", mc.AV_PASSWORD: "x"})
+    assert out[mc.AV_RESULT] == "NAK"
+    assert mc.AV_TACPROFILE not in out
+
+
+def test_handle_info_returns_profile(mc: ModuleType) -> None:
+    out = _capture_response(mc, {mc.AV_TACTYPE: "INFO", mc.AV_USER: "jan"})
+    assert out[mc.AV_RESULT] == "ACK"
+    assert "permit" in out[mc.AV_TACPROFILE]
+
+
+def test_handle_host_ack_without_profile(mc: ModuleType) -> None:
+    out = _capture_response(mc, {mc.AV_TACTYPE: "HOST"})
+    assert out[mc.AV_RESULT] == "ACK"
+    assert mc.AV_TACPROFILE not in out
+
+
+def _capture_response(mc: ModuleType, req: dict[int, str]) -> dict[int, str]:
+    """Drive `handle` once and parse the textual response back into a dict."""
+    buf = io.StringIO()
+
+    class _StdoutPatch:
+        def __enter__(self) -> None:
+            self._real = mc.sys.stdout
+            mc.sys.stdout = buf
+
+        def __exit__(self, *exc: object) -> None:
+            mc.sys.stdout = self._real
+
+    with _StdoutPatch():
+        mc.handle(dict(req))
+    return _parse_response(buf.getvalue())
+
+
+def _parse_response(text: str) -> dict[int, str]:
+    out: dict[int, str] = {}
+    # Split on \n only — the wire format encodes value-internal newlines as
+    # \r, and `str.splitlines()` would split on those too.
+    for raw in text.split("\n"):
+        if not raw or raw.startswith("="):
+            continue
+        idx_str, _, value = raw.partition(" ")
+        out[int(idx_str)] = value.replace("\r", "\n")
+    return out
+
+
+@pytest.fixture(autouse=True)
+def _restore_stdout() -> Iterator[None]:
+    yield

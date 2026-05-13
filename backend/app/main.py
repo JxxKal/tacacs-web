@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import health
+from app.api import health, internal_mavis
 from app.core.config import settings
 from app.core.logging import configure_logging
 from app.db.session import engine
@@ -29,3 +29,4 @@ app = FastAPI(
 )
 
 app.include_router(health.router, prefix="/healthz", tags=["health"])
+app.include_router(internal_mavis.router, prefix="/internal/mavis", tags=["internal"])

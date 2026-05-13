@@ -67,17 +67,14 @@ services:
       dockerfile: docker/tac_plus-ng/Dockerfile
     restart: unless-stopped
     depends_on:
-      db:
+      backend:
         condition: service_healthy
     environment:
       <<: *common-env
       TACACS_SHARED_SECRET: ${TACACS_SHARED_SECRET:?TACACS_SHARED_SECRET must be set (e.g. in .env)}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-tacacs}@db:5432/${POSTGRES_DB:-tacacs}
-      DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
-      MASTER_KEY_FILE: /run/secrets/master_key
-    secrets:
-      - postgres_password
-      - master_key
+      # The MAVIS child POSTs each AUTH packet to the backend; DB + master
+      # key live there, not here.
+      TACACS_BACKEND_URL: http://backend:8000
     # M6 will mount tacacs-acct here once the accounting-ingestor lands; for M2
     # the tac_plus-ng container has no accounting output configured.
     ports:
@@ -88,6 +85,29 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    networks:
+      - internal
+
+  # OpenLDAP harness used by the `integration` profile to drive the live-bind
+   # path of the MAVIS handler end-to-end. Not part of the production stack —
+   # operators point the real AD/LDAPS endpoint at the backend instead.
+  openldap:
+    image: bitnami/openldap:2.6
+    profiles: [integration]
+    environment:
+      LDAP_ADMIN_USERNAME: admin
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD:-adminpass}
+      LDAP_ROOT: dc=corp,dc=example
+      LDAP_USER_DC: users
+      LDAP_USERS: ${LDAP_TEST_USER:-smokeuser}
+      LDAP_PASSWORDS: ${LDAP_TEST_PASSWORD:-hunter2}
+      LDAP_PORT_NUMBER: "1389"
+    healthcheck:
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost:1389 -b dc=corp,dc=example -s base >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
     networks:
       - internal
 

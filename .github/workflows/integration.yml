@@ -11,6 +11,8 @@ jobs:
     env:
       TACACS_SHARED_SECRET: smoketest-shared-secret
       POSTGRES_PASSWORD: smoketest-postgres
+      LDAP_TEST_USER: smokeuser
+      LDAP_TEST_PASSWORD: hunter2
     steps:
       - uses: actions/checkout@v4
 
@@ -28,29 +30,60 @@ jobs:
         run: pip install tacacs_plus
 
       - name: compose build
-        run: docker compose -f docker/compose.yml build db backend tac_plus-ng
+        run: docker compose -f docker/compose.yml --profile integration build db backend tac_plus-ng
 
-      - name: compose up (db + backend + tac_plus-ng)
+      - name: compose up - core
         env:
           TACACS_BIND_ADDR: 127.0.0.1
           HTTP_BIND_ADDR: 127.0.0.1
           HTTPS_BIND_ADDR: 127.0.0.1
-        # No --wait: the tac_plus-ng healthcheck is flaky in M2 (spawnd's
-        # single-process mode interacts oddly with nc); the smoke script
-        # has its own port-readiness retry, and we wait on db + backend
-        # via depends_on conditions.
-        run: docker compose -f docker/compose.yml up -d db backend tac_plus-ng
+        run: docker compose -f docker/compose.yml --profile integration up -d db backend openldap
+
+      - name: wait for backend + openldap
+        run: |
+          for i in $(seq 1 60); do
+            backend=$(docker compose -f docker/compose.yml ps backend --format '{{.Health}}' || echo unknown)
+            ldap=$(docker compose -f docker/compose.yml ps openldap --format '{{.Health}}' || echo unknown)
+            echo "[$i] backend=$backend openldap=$ldap"
+            if [ "$backend" = "healthy" ] && [ "$ldap" = "healthy" ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "backend or openldap never became healthy"
+          docker compose -f docker/compose.yml ps -a
+          exit 1
+
+      - name: seed integration data (ldap.url + user row)
+        run: |
+          docker compose -f docker/compose.yml exec -T db \
+            psql -v ON_ERROR_STOP=1 -U "${POSTGRES_USER:-tacacs}" -d "${POSTGRES_DB:-tacacs}" \
+            < scripts/seed-integration.sql
+
+      - name: compose up - tac_plus-ng
+        run: docker compose -f docker/compose.yml --profile integration up -d tac_plus-ng
 
       - name: container state
         run: docker compose -f docker/compose.yml ps -a
 
-      - name: smoke - TACACS+ authn round trip
+      - name: smoke - correct password is accepted
         env:
           TACACS_HOST: 127.0.0.1
           TACACS_PORT: 49
           TACACS_SECRET: smoketest-shared-secret
           TACACS_USER: smokeuser
-          TACACS_PASSWORD: anypass
+          TACACS_PASSWORD: hunter2
+          EXPECT: ACCEPT
+        run: python scripts/smoke-tacacs.py
+
+      - name: smoke - wrong password is rejected
+        env:
+          TACACS_HOST: 127.0.0.1
+          TACACS_PORT: 49
+          TACACS_SECRET: smoketest-shared-secret
+          TACACS_USER: smokeuser
+          TACACS_PASSWORD: definitely-not-hunter2
+          EXPECT: REJECT
         run: python scripts/smoke-tacacs.py
 
       - name: compose ps on failure
@@ -61,10 +94,18 @@ jobs:
         if: failure()
         run: docker compose -f docker/compose.yml logs --no-color tac_plus-ng
 
+      - name: backend logs on failure
+        if: failure()
+        run: docker compose -f docker/compose.yml logs --no-color backend
+
+      - name: openldap logs on failure
+        if: failure()
+        run: docker compose -f docker/compose.yml logs --no-color openldap
+
       - name: full compose logs on failure
         if: failure()
         run: docker compose -f docker/compose.yml logs --no-color
 
       - name: compose down
         if: always()
-        run: docker compose -f docker/compose.yml down -v --remove-orphans
+        run: docker compose -f docker/compose.yml --profile integration down -v --remove-orphans
