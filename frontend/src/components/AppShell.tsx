@@ -81,17 +81,20 @@ export function AppShell({ children }: Props) {
             leftSection={<IconNetwork size={16} />}
           />
           <NavLink
-            disabled
+            component={RouterNavLink}
+            to="/privilege-profiles"
             label={t("nav.privilegeProfiles")}
             leftSection={<IconKey size={16} />}
           />
           <NavLink
-            disabled
+            component={RouterNavLink}
+            to="/devices"
             label={t("nav.devices")}
             leftSection={<IconServer2 size={16} />}
           />
           <NavLink
-            disabled
+            component={RouterNavLink}
+            to="/authorizations"
             label={t("nav.authorizations")}
             leftSection={<IconShieldLock size={16} />}
           />

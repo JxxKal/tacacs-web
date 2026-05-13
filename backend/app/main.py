@@ -13,6 +13,7 @@ from app.api.v1 import (
     device_groups,
     devices,
     effective_permissions,
+    principals,
     privilege_profiles,
 )
 from app.auth.sessions import require_session
@@ -73,5 +74,17 @@ app.include_router(
     effective_permissions.router,
     prefix="/api/v1",
     tags=["effective-permissions"],
+    dependencies=_API_V1_DEPS,
+)
+app.include_router(
+    principals.users_router,
+    prefix="/api/v1/users",
+    tags=["principals"],
+    dependencies=_API_V1_DEPS,
+)
+app.include_router(
+    principals.ad_groups_router,
+    prefix="/api/v1/ad-groups",
+    tags=["principals"],
     dependencies=_API_V1_DEPS,
 )

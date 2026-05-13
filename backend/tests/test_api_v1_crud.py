@@ -341,3 +341,58 @@ async def test_effective_permissions_surfaces_winner_and_overridden(
 def test_effective_permissions_unknown_user_404(client: TestClient) -> None:
     r = client.get("/api/v1/users/999/effective-permissions")
     assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Principal listings (read-only)
+# ---------------------------------------------------------------------------
+
+
+async def test_list_users_returns_synced_users(
+    client: TestClient, async_db_session: AsyncSession
+) -> None:
+    from app.db.models import User
+
+    async_db_session.add_all(
+        [
+            User(
+                sam_account_name="jan",
+                distinguished_name="cn=jan,dc=x",
+                display_name="Jan K.",
+                enabled=True,
+            ),
+            User(
+                sam_account_name="adi",
+                distinguished_name="cn=adi,dc=x",
+                display_name="Adi M.",
+                enabled=True,
+            ),
+        ]
+    )
+    await async_db_session.commit()
+
+    r = client.get("/api/v1/users")
+    assert r.status_code == 200
+    body = r.json()
+    # Ordered by sam_account_name.
+    assert [u["sam_account_name"] for u in body] == ["adi", "jan"]
+    assert body[0]["display_name"] == "Adi M."
+
+
+async def test_list_ad_groups_returns_synced_groups(
+    client: TestClient, async_db_session: AsyncSession
+) -> None:
+    from app.db.models import ADGroup
+
+    async_db_session.add_all(
+        [
+            ADGroup(sid="S-1-5-21-1", distinguished_name="cn=ops,dc=x", name="ops"),
+            ADGroup(sid="S-1-5-21-2", distinguished_name="cn=admins,dc=x", name="admins"),
+        ]
+    )
+    await async_db_session.commit()
+
+    r = client.get("/api/v1/ad-groups")
+    assert r.status_code == 200
+    body = r.json()
+    assert [g["name"] for g in body] == ["admins", "ops"]
