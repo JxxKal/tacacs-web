@@ -24,6 +24,11 @@ os.environ.setdefault("LOG_LEVEL", "WARNING")
 # Cookies emitted by Set-Cookie with Secure=true are stripped on http://;
 # tests run over http via TestClient, so opt out of Secure here.
 os.environ.setdefault("SESSION_COOKIE_SECURE", "false")
+# TLS settings module writes cert/key files; point that at a tmp path so
+# tests don't reach the production /var/lib/tacacs-web/tls volume mount.
+_TLS_TMP = _TMP / "tls"
+_TLS_TMP.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("TACACS_WEB_TLS_DIR", str(_TLS_TMP))
 
 
 from collections.abc import AsyncIterator  # noqa: E402

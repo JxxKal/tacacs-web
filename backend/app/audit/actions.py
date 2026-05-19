@@ -37,6 +37,8 @@ AUTHORIZATION_DELETED = "authorization.deleted"
 # System-settings changes
 SETTING_LDAP_URL_UPDATED = "setting.ldap_url_updated"
 SETTING_WEB_BASE_URL_UPDATED = "setting.web_base_url_updated"
+TLS_CERT_UPLOADED = "tls.cert_uploaded"
+TLS_CERT_REGENERATED = "tls.cert_regenerated_self_signed"
 
 ALL_ACTIONS = frozenset(
     {
@@ -61,5 +63,7 @@ ALL_ACTIONS = frozenset(
         AUTHORIZATION_DELETED,
         SETTING_LDAP_URL_UPDATED,
         SETTING_WEB_BASE_URL_UPDATED,
+        TLS_CERT_UPLOADED,
+        TLS_CERT_REGENERATED,
     }
 )

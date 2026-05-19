@@ -15,6 +15,7 @@ from app.api.v1 import (
     effective_permissions,
     principals,
     privilege_profiles,
+    settings_tls,
 )
 from app.api.v1 import (
     settings as v1_settings,
@@ -94,6 +95,12 @@ app.include_router(
 app.include_router(
     v1_settings.router,
     prefix="/api/v1/settings",
+    tags=["settings"],
+    dependencies=_API_V1_DEPS,
+)
+app.include_router(
+    settings_tls.router,
+    prefix="/api/v1/settings/tls",
     tags=["settings"],
     dependencies=_API_V1_DEPS,
 )

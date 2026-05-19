@@ -24,7 +24,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libldap-2.5-0 \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g 1000 app \
-    && useradd -u 1000 -g 1000 -d /app -m -s /usr/sbin/nologin app
+    && useradd -u 1000 -g 1000 -d /app -m -s /usr/sbin/nologin app \
+    && mkdir -p /var/lib/tacacs-web/tls \
+    && chown -R 1000:1000 /var/lib/tacacs-web
 
 WORKDIR /app
 COPY --from=build /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
