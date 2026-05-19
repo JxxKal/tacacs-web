@@ -121,7 +121,9 @@ function AdSyncCard() {
           </Text>
           {!s.configured && (
             <Alert color="yellow" variant="light" mt="xs">
-              {t("settings.syncUnconfiguredHint")}
+              {s.url
+                ? t("settings.syncUnconfiguredHint")
+                : t("settings.syncMissingLdapUrlHint")}
             </Alert>
           )}
           <AdSyncLastRunBadge status={s} />
@@ -242,7 +244,6 @@ function AdSyncForm({
 }: {
   status: LdapSyncStatus;
   onSave: (payload: {
-    url: string | null;
     bind_dn: string;
     bind_password: string | null;
     base_dns: string[];
@@ -278,14 +279,18 @@ function AdSyncForm({
 
   const baseDnsKey = status.base_dns.join("|");
   useEffect(() => {
-    form.setValues({
-      bind_dn: status.bind_dn ?? "",
-      bind_password: "",
-      base_dns_text: status.base_dns.join("\n"),
-      user_filter: status.user_filter ?? "",
-      cadence_minutes: Math.max(1, Math.round(status.cadence_seconds / 60)),
-      enabled: status.enabled,
-    });
+    // Resync the form fields when the persisted status changes — but DO
+    // NOT touch bind_password. If we reset it to "" here, the user's
+    // freshly-typed password disappears every time another save round-
+    // trips through React Query.
+    form.setFieldValue("bind_dn", status.bind_dn ?? "");
+    form.setFieldValue("base_dns_text", status.base_dns.join("\n"));
+    form.setFieldValue("user_filter", status.user_filter ?? "");
+    form.setFieldValue(
+      "cadence_minutes",
+      Math.max(1, Math.round(status.cadence_seconds / 60)),
+    );
+    form.setFieldValue("enabled", status.enabled);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     status.bind_dn,
@@ -301,7 +306,8 @@ function AdSyncForm({
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
     onSave({
-      url: null, // managed in the LDAP settings card; reused by the worker.
+      // LDAP url comes from the LDAPS-endpoint card above; the AD-sync
+      // PUT deliberately does not touch it (used to wipe it).
       bind_dn: values.bind_dn.trim(),
       bind_password: values.bind_password.length > 0 ? values.bind_password : null,
       base_dns,

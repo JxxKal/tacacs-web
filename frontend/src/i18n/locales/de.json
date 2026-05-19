@@ -184,6 +184,7 @@
     "syncTitle": "Active Directory Sync",
     "syncDescription": "Service-Account, der Users + Gruppen periodisch aus AD in die lokale DB synchronisiert, sodass sie im Authorisations-Editor auswählbar sind.",
     "syncUnconfiguredHint": "Noch nicht konfiguriert. Bind-DN, Passwort und mindestens eine Base-DN setzen, um zu aktivieren.",
+    "syncMissingLdapUrlHint": "Die LDAPS-Endpoint-URL muss in der Karte „Active Directory / LDAPS“ oben gesetzt werden, bevor der Sync-Worker eine Verbindung aufbauen kann.",
     "syncBindDn": "Bind-DN",
     "syncBindDnPlaceholder": "CN=svc-tacacs,OU=Service Accounts,DC=corp,DC=example",
     "syncBindPassword": "Bind-Passwort",

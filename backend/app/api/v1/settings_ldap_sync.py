@@ -80,7 +80,9 @@ class LdapSyncStatusRead(BaseModel):
 
 
 class LdapSyncUpdate(BaseModel):
-    url: str | None = Field(default=None, max_length=512)
+    # NOTE: the LDAP url is owned by the "LDAPS endpoint" settings card
+    # (system_setting key `ldap.url`) — this PUT does NOT touch it. The
+    # AD-sync worker just consumes whatever the LDAP card set.
     bind_dn: str = Field(..., min_length=1, max_length=1024)
     bind_password: str | None = Field(default=None, max_length=1024)
     """Plain password. Omitted on PUT keeps the stored one."""
@@ -88,16 +90,6 @@ class LdapSyncUpdate(BaseModel):
     user_filter: str | None = Field(default=None, max_length=2048)
     cadence_seconds: int = Field(default=CADENCE_DEFAULT_SECONDS, ge=CADENCE_MIN_SECONDS)
     enabled: bool = False
-
-    @field_validator("url")
-    @classmethod
-    def _check_url(cls, v: str | None) -> str | None:
-        if v is None or not v.strip():
-            return None
-        url = v.strip()
-        if not (url.startswith("ldap://") or url.startswith("ldaps://")):
-            raise ValueError("url must start with ldap:// or ldaps://")
-        return url
 
     @field_validator("base_dns")
     @classmethod
@@ -207,7 +199,9 @@ async def update_config(
     if ctx.role != "admin":
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="admin_required")
 
-    await _write_setting(session, SETTING_LDAP_URL, payload.url)
+    # The LDAP url comes from the LDAPS-endpoint settings card; this PUT
+    # does not touch it. Sending `url: null` from the frontend was wiping
+    # it across save round-trips before we removed the field.
     await _write_setting(session, SETTING_BIND_DN, payload.bind_dn.strip())
     await _write_setting(session, SETTING_BASE_DNS, json.dumps(payload.base_dns))
     await _write_setting(

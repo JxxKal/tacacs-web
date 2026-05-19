@@ -184,6 +184,7 @@
     "syncTitle": "Active Directory sync",
     "syncDescription": "Service account that periodically pulls users + groups from AD into the local DB so they appear in the Authorisations editor.",
     "syncUnconfiguredHint": "Not configured yet. Fill in the bind DN, password, and at least one base DN to enable.",
+    "syncMissingLdapUrlHint": "The LDAPS endpoint URL has to be set in the \"Active Directory / LDAPS\" card above before the sync worker can connect.",
     "syncBindDn": "Bind DN",
     "syncBindDnPlaceholder": "CN=svc-tacacs,OU=Service Accounts,DC=corp,DC=example",
     "syncBindPassword": "Bind password",

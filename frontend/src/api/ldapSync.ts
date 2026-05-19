@@ -30,7 +30,6 @@ export type LdapSyncStatus = z.infer<typeof StatusSchema>;
 export type LdapSyncLastRun = z.infer<typeof LastSyncSchema>;
 
 export interface LdapSyncUpdate {
-  url: string | null;
   bind_dn: string;
   bind_password: string | null;
   base_dns: string[];
