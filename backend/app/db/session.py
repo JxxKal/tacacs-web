@@ -10,7 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.config import settings
 
 
-def _resolve_url() -> str:
+def resolve_database_url() -> str:
+    """Compose the sqlalchemy URL with the password from the secret file mixed in.
+
+    Shared between the async engine here and the sync Alembic env, so both
+    code paths authenticate the same way against Postgres.
+    """
     url = settings.database_url
     password = settings.database_password()
     if not password:
@@ -24,7 +29,7 @@ def _resolve_url() -> str:
     return urlunparse(parsed._replace(netloc=netloc))
 
 
-engine = create_async_engine(_resolve_url(), pool_pre_ping=True)
+engine = create_async_engine(resolve_database_url(), pool_pre_ping=True)
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 

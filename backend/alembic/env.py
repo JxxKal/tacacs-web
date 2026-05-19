@@ -11,9 +11,9 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
-from app.core.config import settings
 from app.db import models  # noqa: F401  (registers ORM models on Base.metadata)
 from app.db.base import Base
+from app.db.session import resolve_database_url
 
 config = context.config
 
@@ -24,7 +24,9 @@ target_metadata = Base.metadata
 
 
 def _sync_url() -> str:
-    url = settings.database_url
+    # Share the password-injection logic with the runtime engine so Alembic
+    # authenticates the same way the FastAPI app does.
+    url = resolve_database_url()
     # Alembic uses sync drivers; swap any async dialect prefix.
     return url.replace("postgresql+asyncpg://", "postgresql+psycopg://")
 
