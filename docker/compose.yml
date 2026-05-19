@@ -52,6 +52,10 @@ services:
       - master_key
     volumes:
       - tls-state:/var/lib/tacacs-web/tls
+      # Shared with the tac_plus-ng container; backend writes the
+      # rendered hosts.cfg here, the daemon-side inotify sidecar
+      # SIGHUPs tac_plus-ng on every change.
+      - tac-plus-ng-config:/var/lib/tacacs-web/tac_plus-ng
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz/ready"]
       interval: 15s
@@ -75,8 +79,12 @@ services:
       # The MAVIS child POSTs each AUTH packet to the backend; DB + master
       # key live there, not here.
       TACACS_BACKEND_URL: http://backend:8000
-    # M6 will mount tacacs-acct here once the accounting-ingestor lands; for M2
-    # the tac_plus-ng container has no accounting output configured.
+    volumes:
+      # Shared with the backend; the backend writes hosts.cfg here, the
+      # entrypoint's inotify loop watches the directory and SIGHUPs the
+      # daemon on change.
+      - tac-plus-ng-config:/etc/tac_plus-ng/dynamic
+    # M6 will mount tacacs-acct here once the accounting-ingestor lands.
     ports:
       - "${TACACS_BIND_ADDR:-0.0.0.0}:49:49/tcp"
     healthcheck:
@@ -150,6 +158,7 @@ secrets:
 volumes:
   postgres-data:
   tls-state:
+  tac-plus-ng-config:
 
 networks:
   internal:

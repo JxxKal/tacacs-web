@@ -9,6 +9,7 @@ from fastapi import Depends, FastAPI
 
 from app.api import auth_local, health, internal_mavis, saml_routes
 from app.api.v1 import (
+    admin,
     authorizations,
     device_groups,
     devices,
@@ -120,5 +121,11 @@ app.include_router(
     settings_ldap_sync.router,
     prefix="/api/v1/settings/ldap-sync",
     tags=["settings"],
+    dependencies=_API_V1_DEPS,
+)
+app.include_router(
+    admin.router,
+    prefix="/api/v1/admin",
+    tags=["admin"],
     dependencies=_API_V1_DEPS,
 )

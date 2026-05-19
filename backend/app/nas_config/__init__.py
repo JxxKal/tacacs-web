@@ -9,5 +9,6 @@ is already useful for diffing + the upcoming UI preview).
 """
 
 from app.nas_config.render import render_host_blocks
+from app.nas_config.writer import HOSTS_FILE, NAS_CONFIG_DIR, regenerate_nas_config
 
-__all__ = ["render_host_blocks"]
+__all__ = ["HOSTS_FILE", "NAS_CONFIG_DIR", "regenerate_nas_config", "render_host_blocks"]

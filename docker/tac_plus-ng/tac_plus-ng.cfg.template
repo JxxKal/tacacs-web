@@ -1,11 +1,17 @@
-# Minimal tac_plus-ng configuration for M2.
+# tac_plus-ng configuration.
 #
-# - spawnd accepts on TCP:49 and supervises a tac_plus-ng worker
+# - spawnd accepts on TCP:49 and supervises a tac_plus-ng worker.
 # - All authentication/authorization decisions are delegated to an external
-#   MAVIS module (a Python child process)
-# - One catch-all host block accepts any NAS source IP with one shared secret
-# - A small `profile admin` makes the shell session reachable for the smoke
-#   test; M4 returns per-user profiles dynamically from MAVIS instead
+#   MAVIS module (a Python child process) -> backend -> AD.
+# - NAS host blocks come from the dynamic include below. The backend
+#   (re)renders /etc/tac_plus-ng/dynamic/hosts.cfg from the Device table
+#   on every CRUD change; an inotify sidecar in the entrypoint SIGHUPs
+#   the daemon on file change so secrets-rotations / new devices go live
+#   without a container restart.
+# - The bundled `profile admin` is the fallback the smoke test uses while
+#   M4 MAVIS still doesn't speak per-NAS authz; once real authorisations
+#   exist, MAVIS returns the matching profile inline (we keep this one as
+#   a non-permit-only emergency option).
 
 id = spawnd {
     background = no
@@ -24,11 +30,7 @@ id = tac_plus-ng {
     login backend = mavis chpass
     pap backend = mavis
 
-    host any_nas {
-        address = 0.0.0.0/0
-        key = "${TACACS_SHARED_SECRET}"
-        mavis backend = yes
-    }
+    include "/etc/tac_plus-ng/dynamic/hosts.cfg"
 
     profile admin {
         script {

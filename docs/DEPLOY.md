@@ -9,8 +9,8 @@ operational consequences.
 > TACACS+ daemon, MAVIS authn + authz (with live LDAPS bind), the four CRUD
 > resources (DeviceGroups, PrivilegeProfiles, Devices, Authorizations), the
 > local break-glass admin login, and an append-only audit log. Setup wizard,
-> SAML SP, AD-sync scheduler, accounting forwarder, and NAS-config-regen are
-> not yet wired — see [Current limitations](#current-limitations).
+> Accounting forwarder and the first-boot Setup-Wizard are still on the
+> M6 / M7 plan — see [Current limitations](#current-limitations).
 
 ---
 
@@ -296,9 +296,10 @@ docker compose -f docker/compose.yml exec -T db \
       ```sql
       UPDATE local_admin SET allowed_source_cidr = '10.0.0.0/16';
       ```
-- [ ] Firewall TCP/49 to only your NAS subnets. The TACACS+ daemon
-      currently uses a catch-all NAS block (any source IP, single shared
-      secret) — see limitations.
+- [ ] Firewall TCP/49 to only your NAS subnets. The daemon accepts any
+      Device row from the UI; until the first Device is provisioned, a
+      `bootstrap` block still accepts any source IP with the env-supplied
+      `TACACS_SHARED_SECRET`.
 - [ ] Confirm Postgres is not bound to a host port (the compose file
       does not expose it; verify with `docker compose ps`).
 - [ ] Confirm `secrets/master.key` and `secrets/postgres_password` are
@@ -316,22 +317,10 @@ docker compose -f docker/compose.yml exec -T db \
 These are real gaps you will hit. Tracking them here so an early
 deployer knows what to expect.
 
-- **No AD-sync scheduler.** The sync engine (`app.ldap_sync.run_sync`)
-  is present and tested, but nothing triggers it on a cadence yet.
-  Until that lands, populate the `user` / `ad_group` tables manually
-  for testing, or call `run_sync` from a one-off Python shell inside
-  the backend container.
-- **No setup wizard.** LDAP URL and sync scope must be inserted into
-  `system_setting` via psql (see §4). The wizard that puts this behind
-  a UI is M7.
-- **No NAS-config regeneration.** Devices created in the UI store
-  per-device shared secrets in the DB, but the daemon still consumes a
-  single catch-all `host` block with `TACACS_SHARED_SECRET` from the
-  env. The regen path (render `host` blocks per Device, SIGHUP the
-  daemon) is the last task of M4; the render function + tests are in
-  the tree.
-- **No SAML SP.** The break-glass admin is the only login path today.
-  ADR-0003's day-job SAML half is M5b.
+- **No setup wizard.** LDAP URL and similar settings are now editable in
+  the Settings UI (LDAPS endpoint, public hostname, AD-sync config, TLS
+  cert upload, SAML SP). A first-boot wizard that walks an operator
+  through the four-step setup is M7.
 - **No accounting persistence or forwarding.** `aaa accounting` rows
   from the daemon are not yet ingested into the DB or forwarded to
   external syslog. That's M6.

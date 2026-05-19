@@ -38,7 +38,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g 1000 app \
     && useradd -u 1000 -g 1000 -d /app -m -s /usr/sbin/nologin app \
-    && mkdir -p /var/lib/tacacs-web/tls \
+    && mkdir -p /var/lib/tacacs-web/tls /var/lib/tacacs-web/tac_plus-ng \
     && chown -R 1000:1000 /var/lib/tacacs-web
 
 WORKDIR /app

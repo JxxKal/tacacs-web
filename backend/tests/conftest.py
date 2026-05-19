@@ -29,6 +29,10 @@ os.environ.setdefault("SESSION_COOKIE_SECURE", "false")
 _TLS_TMP = _TMP / "tls"
 _TLS_TMP.mkdir(parents=True, exist_ok=True)
 os.environ.setdefault("TACACS_WEB_TLS_DIR", str(_TLS_TMP))
+# Same trick for the tac_plus-ng dynamic hosts.cfg path.
+_NAS_CONFIG_TMP = _TMP / "tac_plus-ng"
+_NAS_CONFIG_TMP.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("TACACS_WEB_NAS_CONFIG_DIR", str(_NAS_CONFIG_TMP))
 
 
 from collections.abc import AsyncIterator  # noqa: E402

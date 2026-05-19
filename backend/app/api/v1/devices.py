@@ -14,8 +14,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Device, DeviceGroup
 from app.db.session import get_session
+from app.nas_config import regenerate_nas_config
 
 router = APIRouter()
+
+
+async def _regen(session: AsyncSession) -> None:
+    """Re-render the tac_plus-ng hosts.cfg after every Device mutate.
+
+    Swallows write errors so a CRUD success isn't undone by a missing
+    shared volume in a dev / test setup. The regen-failure surfaces in
+    backend logs and via the manual admin endpoint.
+    """
+    try:
+        await regenerate_nas_config(session)
+    except OSError as exc:
+        import structlog
+
+        structlog.get_logger("nas_config").warning(
+            "nas_config.regen_write_failed", error=str(exc)
+        )
 
 
 def _validate_ip_or_cidr(value: str) -> str:
@@ -124,6 +142,7 @@ async def create_device(
             status.HTTP_409_CONFLICT, detail="name_or_ip_already_exists"
         ) from exc
     await session.refresh(row)
+    await _regen(session)
     return DeviceRead.from_row(row)
 
 
@@ -164,6 +183,7 @@ async def update_device(
             status.HTTP_409_CONFLICT, detail="name_or_ip_already_exists"
         ) from exc
     await session.refresh(row)
+    await _regen(session)
     return DeviceRead.from_row(row)
 
 
@@ -177,6 +197,7 @@ async def delete_device(
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     await session.delete(row)
     await session.commit()
+    await _regen(session)
 
 
 @router.post("/{device_id}/rotate-secret", response_model=DeviceRead)
@@ -201,6 +222,7 @@ async def rotate_secret(
     row.current_secret_enc = payload.new_secret
     await session.commit()
     await session.refresh(row)
+    await _regen(session)
     return DeviceRead.from_row(row)
 
 
@@ -216,4 +238,5 @@ async def retire_previous_secret(
     row.previous_retired_at = datetime.now(tz=row.updated_at.tzinfo if row.updated_at else None)
     await session.commit()
     await session.refresh(row)
+    await _regen(session)
     return DeviceRead.from_row(row)
