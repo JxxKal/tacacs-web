@@ -130,12 +130,26 @@ def write_cert_and_key(cert_pem: bytes, key_pem: bytes) -> None:
 
     The nginx container reads from the same volume on its next start, so
     a restart of `nginx` is required for the new cert to take effect.
+
+    Files land group-writable (0664/0660) so the next operator upload can
+    overwrite without root help; the nginx-side bootstrap entrypoint
+    normalises the same modes on every nginx restart.
     """
     TLS_DIR.mkdir(parents=True, exist_ok=True)
+    # If a previous file is read-only for our uid (e.g. the bootstrap cert
+    # owned root:root), unlink first so we can recreate. This is the
+    # corner case the M5e upload tripped over before the perms got aligned.
+    for path in (CERT_FILE, KEY_FILE):
+        if path.exists():
+            try:
+                path.unlink()
+            except PermissionError:
+                # Fall through; write_bytes will raise a clearer error.
+                pass
     CERT_FILE.write_bytes(cert_pem)
     KEY_FILE.write_bytes(key_pem)
-    CERT_FILE.chmod(0o644)
-    KEY_FILE.chmod(0o640)
+    CERT_FILE.chmod(0o664)
+    KEY_FILE.chmod(0o660)
 
 
 def generate_self_signed(common_name: str, *, days: int = 825) -> tuple[bytes, bytes]:

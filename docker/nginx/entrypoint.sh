@@ -26,7 +26,10 @@ if [ ! -f "$CERT" ] || [ ! -f "$KEY" ]; then
 fi
 
 # Always re-apply perms — covers the case where the backend wrote new
-# files into the shared volume as uid 1000.
+# files into the shared volume as uid 1000. Group-writable so the backend
+# (uid 1000) can overwrite via the cert-upload endpoint without dropping
+# the existing file first. nginx master process runs as root so the
+# group bits don't affect its ability to read either file.
 chgrp 1000 "$CERT" "$KEY" 2>/dev/null || true
-chmod 0644 "$CERT"
-chmod 0640 "$KEY"
+chmod 0664 "$CERT"
+chmod 0660 "$KEY"
