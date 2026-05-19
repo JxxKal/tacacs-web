@@ -10,6 +10,7 @@ from pathlib import Path
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import ExtensionOID, NameOID
 
 # Tunable via the TACACS_WEB_TLS_DIR env var so the test suite can point this
@@ -55,6 +56,46 @@ def parse_cert(pem: bytes) -> CertInfo:
         fingerprint_sha256=fp_pretty,
         is_self_signed=cert.subject == cert.issuer,
     )
+
+
+def parse_pkcs12(data: bytes, password: str | None) -> tuple[bytes, bytes]:
+    """Extract cert chain + private key from a PKCS#12 / PFX blob.
+
+    Windows AD CS exports the issued cert plus its issuing-CA chain in one
+    encrypted .pfx file. We return:
+    - PEM chain (leaf first, then any additional certs in upload order) so
+      nginx serves the full path that browsers need to walk to the trusted
+      root.
+    - The private key in PKCS#8 unencrypted PEM (nginx can't unlock a
+      password-protected key on its own).
+
+    `password` may be None / empty for unencrypted PFX. Both `None` and an
+    empty string are accepted.
+    """
+    pwd_bytes: bytes | None = None if not password else password.encode("utf-8")
+    try:
+        bundle = pkcs12.load_pkcs12(data, pwd_bytes)
+    except ValueError as exc:
+        raise CertError(f"could not parse PFX (wrong password?): {exc}") from exc
+
+    if bundle.cert is None or bundle.cert.certificate is None:
+        raise CertError("PFX did not contain an end-entity certificate")
+    if bundle.key is None:
+        raise CertError("PFX did not contain a private key")
+
+    parts: list[bytes] = [
+        bundle.cert.certificate.public_bytes(serialization.Encoding.PEM)
+    ]
+    for additional in bundle.additional_certs:
+        parts.append(additional.certificate.public_bytes(serialization.Encoding.PEM))
+    chain_pem = b"".join(parts)
+
+    key_pem = bundle.key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    return chain_pem, key_pem
 
 
 def validate_cert_key_pair(cert_pem: bytes, key_pem: bytes) -> None:

@@ -14,6 +14,7 @@ from app.tls.certs import (
     CertInfo,
     generate_self_signed,
     parse_cert,
+    parse_pkcs12,
     validate_cert_key_pair,
     write_cert_and_key,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "CertInfo",
     "generate_self_signed",
     "parse_cert",
+    "parse_pkcs12",
     "validate_cert_key_pair",
     "write_cert_and_key",
 ]

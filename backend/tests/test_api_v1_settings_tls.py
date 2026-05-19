@@ -2,22 +2,52 @@
 
 from __future__ import annotations
 
+import base64
 import os
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
 import pytest
+from cryptography import x509
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.serialization import pkcs12
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.audit.actions import TLS_CERT_REGENERATED, TLS_CERT_UPLOADED
+from app.audit.actions import (
+    TLS_CERT_REGENERATED,
+    TLS_CERT_UPLOADED,
+    TLS_PFX_UPLOADED,
+)
 from app.auth.sessions import SessionContext, require_session
 from app.db.models import AuditLog
 from app.db.session import get_session
 from app.main import app
 from app.tls import generate_self_signed
 from app.tls.certs import CERT_FILE, KEY_FILE, TLS_DIR
+
+
+def _build_pfx(common_name: str, password: str | None) -> bytes:
+    """Bundle a fresh self-signed cert + key into a PKCS#12 blob.
+
+    Used to feed `/upload-pfx` in tests without an external fixture.
+    """
+    cert_pem, key_pem = generate_self_signed(common_name, days=30)
+    cert = x509.load_pem_x509_certificate(cert_pem)
+    key = serialization.load_pem_private_key(key_pem, password=None)
+    encryption: serialization.KeySerializationEncryption = (
+        serialization.BestAvailableEncryption(password.encode("utf-8"))
+        if password
+        else serialization.NoEncryption()
+    )
+    return pkcs12.serialize_key_and_certificates(
+        name=b"test",
+        key=key,
+        cert=cert,
+        cas=None,
+        encryption_algorithm=encryption,
+    )
 
 
 def _make_session(role: str = "admin") -> SessionContext:
@@ -188,6 +218,114 @@ def test_regenerate_validates_days_bounds(admin_client: TestClient) -> None:
         json={"common_name": "x.example", "days": 0},
     )
     assert r.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# /upload-pfx
+# ---------------------------------------------------------------------------
+
+
+async def test_upload_pfx_with_password_persists_and_audits(
+    admin_client: TestClient, async_db_session: AsyncSession
+) -> None:
+    pfx = _build_pfx("pfx.example", "letmein")
+    r = admin_client.post(
+        "/api/v1/settings/tls/upload-pfx",
+        json={
+            "pfx_base64": base64.b64encode(pfx).decode("ascii"),
+            "password": "letmein",
+        },
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["has_cert"] is True
+    assert body["info"]["subject_cn"] == "pfx.example"
+    assert body["info"]["source"] == "uploaded"
+
+    # Files were written; cert + key extracted correctly.
+    assert CERT_FILE.exists() and KEY_FILE.exists()
+    assert b"BEGIN CERTIFICATE" in CERT_FILE.read_bytes()
+    assert b"BEGIN PRIVATE KEY" in KEY_FILE.read_bytes()
+
+    audits = (
+        await async_db_session.execute(
+            select(AuditLog).where(AuditLog.action == TLS_PFX_UPLOADED)
+        )
+    ).scalars().all()
+    assert len(audits) == 1
+    assert audits[0].summary is not None
+    assert audits[0].summary.startswith("PFX: pfx.example")
+
+
+def test_upload_pfx_without_password_works(admin_client: TestClient) -> None:
+    pfx = _build_pfx("nopw.example", password=None)
+    r = admin_client.post(
+        "/api/v1/settings/tls/upload-pfx",
+        json={
+            "pfx_base64": base64.b64encode(pfx).decode("ascii"),
+            "password": None,
+        },
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["info"]["subject_cn"] == "nopw.example"
+
+
+def test_upload_pfx_rejects_wrong_password(admin_client: TestClient) -> None:
+    pfx = _build_pfx("pw.example", "correct")
+    r = admin_client.post(
+        "/api/v1/settings/tls/upload-pfx",
+        json={
+            "pfx_base64": base64.b64encode(pfx).decode("ascii"),
+            "password": "incorrect",
+        },
+    )
+    assert r.status_code == 400
+    assert "wrong password" in r.json()["detail"].lower()
+    assert not CERT_FILE.exists()
+
+
+def test_upload_pfx_rejects_garbage_base64(admin_client: TestClient) -> None:
+    r = admin_client.post(
+        "/api/v1/settings/tls/upload-pfx",
+        json={"pfx_base64": "not_base64!!!!", "password": None},
+    )
+    assert r.status_code == 400
+    assert r.json()["detail"] == "invalid_base64"
+
+
+def test_viewer_cannot_upload_pfx(viewer_client: TestClient) -> None:
+    pfx = _build_pfx("x.example", password=None)
+    r = viewer_client.post(
+        "/api/v1/settings/tls/upload-pfx",
+        json={"pfx_base64": base64.b64encode(pfx).decode("ascii"), "password": None},
+    )
+    assert r.status_code == 403
+
+
+async def test_upload_pfx_with_chain_writes_full_chain(
+    admin_client: TestClient, async_db_session: AsyncSession
+) -> None:
+    """Mimic an AD-CS export: leaf + intermediate CA in one PFX."""
+    leaf_pem, leaf_key = generate_self_signed("leaf.example", days=30)
+    ca_pem, _ca_key = generate_self_signed("intermediate.example", days=30)
+    leaf_cert = x509.load_pem_x509_certificate(leaf_pem)
+    leaf_priv = serialization.load_pem_private_key(leaf_key, password=None)
+    ca_cert = x509.load_pem_x509_certificate(ca_pem)
+    pfx = pkcs12.serialize_key_and_certificates(
+        name=b"test",
+        key=leaf_priv,
+        cert=leaf_cert,
+        cas=[ca_cert],
+        encryption_algorithm=serialization.BestAvailableEncryption(b"x"),
+    )
+    r = admin_client.post(
+        "/api/v1/settings/tls/upload-pfx",
+        json={"pfx_base64": base64.b64encode(pfx).decode("ascii"), "password": "x"},
+    )
+    assert r.status_code == 200, r.text
+    on_disk = CERT_FILE.read_bytes()
+    # Two BEGIN-CERTIFICATE blocks: leaf + intermediate.
+    assert on_disk.count(b"BEGIN CERTIFICATE") == 2
 
 
 def _assert_volume_perms(_path: Path) -> None:

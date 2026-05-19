@@ -47,6 +47,7 @@ import {
 import {
   useRegenerateTls,
   useTlsStatus,
+  useUploadPfx,
   useUploadTls,
   type CertInfo,
 } from "@/api/tls";
@@ -456,6 +457,9 @@ function TlsCard() {
           <Button variant="default" onClick={() => openUploadModal(t)}>
             {t("settings.tlsUpload")}
           </Button>
+          <Button variant="default" onClick={() => openPfxUploadModal(t)}>
+            {t("settings.tlsUploadPfx")}
+          </Button>
           <Button variant="default" onClick={() => openRegenerateModal(t)}>
             {t("settings.tlsRegenerate")}
           </Button>
@@ -505,6 +509,19 @@ function CertInfoTable({ info }: { info: CertInfo }) {
     </Stack>
   );
 }
+
+function openPfxUploadModal(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+) {
+  const modalId = `tls-pfx-${Date.now()}`;
+  modals.open({
+    modalId,
+    title: t("settings.tlsPfxTitle"),
+    size: "lg",
+    children: <PfxUploadForm t={t} onClose={() => modals.close(modalId)} />,
+  });
+}
+
 
 function openUploadModal(t: (key: string, opts?: Record<string, unknown>) => string) {
   const modalId = `tls-upload-${Date.now()}`;
@@ -631,6 +648,105 @@ function UploadForm({ t, onClose }: FormProps) {
     </form>
   );
 }
+
+function PfxUploadForm({ t, onClose }: FormProps) {
+  const upload = useUploadPfx();
+  const form = useForm({
+    initialValues: { pfx_base64: "", password: "" },
+    validate: {
+      pfx_base64: (v) =>
+        v.length === 0 ? t("settings.tlsPfxFile") : null,
+    },
+  });
+  const [fileName, setFileName] = useState<string | null>(null);
+
+  const readFile = (file: File | null) => {
+    if (!file) return;
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result;
+      if (result instanceof ArrayBuffer) {
+        // Convert binary -> base64 in chunks to avoid stack overflow on
+        // very large PFX (multi-cert chains hover around 5-10 KiB so
+        // this is mostly a defensive measure).
+        const bytes = new Uint8Array(result);
+        let binary = "";
+        const chunk = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunk) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+        }
+        form.setFieldValue("pfx_base64", window.btoa(binary));
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const submit = form.onSubmit((values) => {
+    upload.mutate(
+      {
+        pfx_base64: values.pfx_base64,
+        password: values.password.length > 0 ? values.password : null,
+      },
+      {
+        onSuccess: () => {
+          notifications.show({
+            color: "green",
+            message: t("settings.tlsPfxUploaded"),
+          });
+          onClose();
+        },
+        onError: (err) =>
+          notifications.show({
+            color: "red",
+            title: t("common.error"),
+            message: errorToMessage(err),
+          }),
+      },
+    );
+  });
+
+  return (
+    <form onSubmit={submit}>
+      <Stack>
+        <Text size="sm" c="dimmed">
+          {t("settings.tlsPfxHint")}
+        </Text>
+        <Group>
+          <FileButton
+            onChange={readFile}
+            accept=".pfx,.p12,application/x-pkcs12"
+          >
+            {(props) => (
+              <Button variant="default" {...props}>
+                {fileName ?? t("settings.tlsPfxFile")}
+              </Button>
+            )}
+          </FileButton>
+          <Text size="sm" c="dimmed">
+            {fileName ?? t("settings.tlsPfxNoFile")}
+          </Text>
+        </Group>
+        <TextInput
+          label={t("settings.tlsPfxPassword")}
+          description={t("settings.tlsPfxNoPasswordHint")}
+          type="password"
+          autoComplete="off"
+          {...form.getInputProps("password")}
+        />
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button type="submit" loading={upload.isPending}>
+            {t("settings.tlsPfxUploadButton")}
+          </Button>
+        </Group>
+      </Stack>
+    </form>
+  );
+}
+
 
 function RegenerateForm({ t, onClose }: FormProps) {
   const regen = useRegenerateTls();

@@ -44,6 +44,24 @@ export function useUploadTls() {
   });
 }
 
+export function useUploadPfx() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      pfx_base64,
+      password,
+    }: {
+      pfx_base64: string;
+      password: string | null;
+    }) =>
+      apiRequest("/api/v1/settings/tls/upload-pfx", TlsStatusSchema, {
+        method: "POST",
+        body: { pfx_base64, password },
+      }),
+    onSuccess: (data) => qc.setQueryData(KEY, data),
+  });
+}
+
 export function useRegenerateTls() {
   const qc = useQueryClient();
   return useMutation({

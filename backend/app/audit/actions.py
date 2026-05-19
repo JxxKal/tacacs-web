@@ -38,6 +38,7 @@ AUTHORIZATION_DELETED = "authorization.deleted"
 SETTING_LDAP_URL_UPDATED = "setting.ldap_url_updated"
 SETTING_WEB_BASE_URL_UPDATED = "setting.web_base_url_updated"
 TLS_CERT_UPLOADED = "tls.cert_uploaded"
+TLS_PFX_UPLOADED = "tls.pfx_uploaded"
 TLS_CERT_REGENERATED = "tls.cert_regenerated_self_signed"
 SAML_IDP_METADATA_IMPORTED = "saml.idp_metadata_imported"
 SAML_MAPPING_UPDATED = "saml.mapping_updated"
@@ -67,6 +68,7 @@ ALL_ACTIONS = frozenset(
         SETTING_LDAP_URL_UPDATED,
         SETTING_WEB_BASE_URL_UPDATED,
         TLS_CERT_UPLOADED,
+        TLS_PFX_UPLOADED,
         TLS_CERT_REGENERATED,
         SAML_IDP_METADATA_IMPORTED,
         SAML_MAPPING_UPDATED,

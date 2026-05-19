@@ -8,6 +8,8 @@ reads them at (re)start. We persist a status row in `system_setting`
 
 from __future__ import annotations
 
+import base64
+import binascii
 from datetime import datetime
 from typing import Annotated
 
@@ -17,7 +19,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import append as audit_append
-from app.audit.actions import TLS_CERT_REGENERATED, TLS_CERT_UPLOADED
+from app.audit.actions import (
+    TLS_CERT_REGENERATED,
+    TLS_CERT_UPLOADED,
+    TLS_PFX_UPLOADED,
+)
 from app.auth.sessions import SessionContext, require_session
 from app.db.models import SystemSetting
 from app.db.session import get_session
@@ -25,6 +31,7 @@ from app.tls import (
     CertInfo,
     generate_self_signed,
     parse_cert,
+    parse_pkcs12,
     validate_cert_key_pair,
     write_cert_and_key,
 )
@@ -59,6 +66,18 @@ class CertUploadBody(BaseModel):
 class RegenerateBody(BaseModel):
     common_name: str = Field(..., min_length=1, max_length=253)
     days: int = Field(default=825, ge=1, le=3650)
+
+
+class PfxUploadBody(BaseModel):
+    """Operator-uploaded PKCS#12 / PFX, typically a Windows AD CS export.
+
+    `pfx_base64` is the binary PFX wrapped in base64 so we can ship it as
+    JSON. Cap on size guards against multi-MB enrolments — a normal AD-CS
+    export with leaf + chain sits at low single-digit kilobytes.
+    """
+
+    pfx_base64: str = Field(..., min_length=1, max_length=400_000)
+    password: str | None = Field(default=None, max_length=512)
 
 
 def _to_read(info: CertInfo, source: str) -> CertInfoRead:
@@ -143,6 +162,57 @@ async def upload_tls(
         actor_id=ctx.actor_id,
         target_type="tls_cert",
         summary=f"{info.subject_cn or '?'} (sha256 {info.fingerprint_sha256[:23]}…)",
+        client_ip=ctx.client_ip,
+        user_agent=ctx.user_agent,
+    )
+    await session.commit()
+    return TlsStatusRead(has_cert=True, info=_to_read(info, "uploaded"))
+
+
+@router.post("/upload-pfx", response_model=TlsStatusRead)
+async def upload_tls_pfx(
+    payload: PfxUploadBody,
+    ctx: Annotated[SessionContext, Depends(require_session)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> TlsStatusRead:
+    """Accept a PFX/PKCS#12 export (typical for Windows AD CS).
+
+    Extracts the leaf cert + any chain certs (intermediates) and the
+    private key, writes the chained PEM + unencrypted key to the
+    tls-state volume. nginx serves the full chain on its next restart.
+    """
+    if ctx.role != "admin":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="admin_required")
+    try:
+        pfx_bytes = base64.b64decode(payload.pfx_base64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="invalid_base64"
+        ) from exc
+    try:
+        cert_pem, key_pem = parse_pkcs12(pfx_bytes, payload.password)
+        info = parse_cert(cert_pem)
+    except CertError as exc:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    try:
+        write_cert_and_key(cert_pem, key_pem)
+    except OSError as exc:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"could not write to tls-state volume: {exc}",
+        ) from exc
+    await _write_source(session, "uploaded")
+    await audit_append(
+        session,
+        actor_username_snapshot=ctx.username,
+        actor_role=ctx.role,
+        auth_method=ctx.auth_method,
+        action=TLS_PFX_UPLOADED,
+        actor_id=ctx.actor_id,
+        target_type="tls_cert",
+        summary=f"PFX: {info.subject_cn or '?'} (sha256 {info.fingerprint_sha256[:23]}…)",
         client_ip=ctx.client_ip,
         user_agent=ctx.user_agent,
     )
