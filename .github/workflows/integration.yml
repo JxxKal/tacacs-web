@@ -35,7 +35,6 @@ jobs:
       - name: compose up - core
         env:
           TACACS_BIND_ADDR: 127.0.0.1
-          HTTP_BIND_ADDR: 127.0.0.1
           HTTPS_BIND_ADDR: 127.0.0.1
         run: docker compose -f docker/compose.yml --profile integration up -d db backend openldap
 

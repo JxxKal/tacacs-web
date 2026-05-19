@@ -128,8 +128,10 @@ services:
       # this volume. Mount rw so both code paths work.
       - tls-state:/etc/nginx/tls
     ports:
-      - "${HTTP_BIND_ADDR:-0.0.0.0}:8080:8080"
-      - "${HTTPS_BIND_ADDR:-0.0.0.0}:8443:8443"
+      # HTTPS is the only listener exposed to the host. The container still
+      # answers on 8443 internally; HTTPS_HOST_PORT controls the host-side
+      # mapping for environments where 8443 is already in use.
+      - "${HTTPS_BIND_ADDR:-0.0.0.0}:${HTTPS_HOST_PORT:-8443}:8443"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "-k", "https://localhost:8443/healthz/live"]
       interval: 15s

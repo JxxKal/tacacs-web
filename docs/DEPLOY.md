@@ -23,7 +23,7 @@ operational consequences.
 | RAM | 2 GB | Postgres, backend, daemon, nginx, build cache |
 | Disk | 10 GB | Postgres data + image layers grow with accounting (M6) |
 | Open ports outbound | 636/tcp to AD | LDAPS bind, both sync and live-bind |
-| Open ports inbound | 49/tcp from NAS devices; 8443/tcp from operator browsers | 8080/tcp redirects to 8443 |
+| Open ports inbound | 49/tcp from NAS devices; 8443/tcp from operator browsers (override via `HTTPS_HOST_PORT`) | HTTPS only; no plain-HTTP listener is exposed. |
 
 The stack is single-host. HA / clustering is explicitly out of scope for v1.
 
