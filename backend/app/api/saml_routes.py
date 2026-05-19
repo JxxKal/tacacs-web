@@ -15,6 +15,7 @@ Flow:
 from __future__ import annotations
 
 from typing import Annotated
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
@@ -41,13 +42,24 @@ router = APIRouter()
 
 
 def _request_data(
-    request: Request, post_data: dict[str, str] | None = None
+    request: Request,
+    base_url: str,
+    post_data: dict[str, str] | None = None,
 ) -> dict[str, object]:
-    https = request.url.scheme == "https"
-    port = request.url.port or (443 if https else 80)
+    """Build the request-data dict python3-saml expects.
+
+    Host / port / scheme are derived from the configured `base_url`, NOT
+    from the proxied request. nginx terminates TLS and forwards to
+    uvicorn over plain HTTP on port 8000, so `request.url.scheme` is
+    always "http" and the port doesn't match what the IdP actually saw.
+    Reading from cfg.base_url keeps the Destination check in
+    auth.process_response() aligned with the IdP-side ACS URL.
+    """
+    parsed = urlparse(base_url)
+    https = parsed.scheme == "https"
     return build_request_data(
-        http_host=request.url.hostname or "localhost",
-        server_port=port,
+        http_host=parsed.hostname or "localhost",
+        server_port=parsed.port or (443 if https else 80),
         https=https,
         request_uri=request.url.path,
         get_data=dict(request.query_params),
@@ -90,7 +102,9 @@ async def saml_login(
         raise HTTPException(
             status.HTTP_409_CONFLICT, detail=f"saml_not_configured: {exc}"
         ) from exc
-    auth = build_auth_for_request(cfg, request_data=_request_data(request))
+    auth = build_auth_for_request(
+        cfg, request_data=_request_data(request, cfg.base_url)
+    )
     target = auth.login(return_to=f"{cfg.base_url}/")
     return RedirectResponse(target, status_code=302)
 
@@ -126,7 +140,9 @@ async def saml_acs(
             status.HTTP_409_CONFLICT, detail=f"saml_not_configured: {exc}"
         ) from exc
 
-    auth = build_auth_for_request(cfg, request_data=_request_data(request, post_data))
+    auth = build_auth_for_request(
+        cfg, request_data=_request_data(request, cfg.base_url, post_data)
+    )
     auth.process_response()
     errors = auth.get_errors()
     if errors or not auth.is_authenticated():

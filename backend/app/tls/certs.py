@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -141,11 +142,9 @@ def write_cert_and_key(cert_pem: bytes, key_pem: bytes) -> None:
     # corner case the M5e upload tripped over before the perms got aligned.
     for path in (CERT_FILE, KEY_FILE):
         if path.exists():
-            try:
+            # Fall through on EACCES; write_bytes raises a clearer error.
+            with contextlib.suppress(PermissionError):
                 path.unlink()
-            except PermissionError:
-                # Fall through; write_bytes will raise a clearer error.
-                pass
     CERT_FILE.write_bytes(cert_pem)
     KEY_FILE.write_bytes(key_pem)
     CERT_FILE.chmod(0o664)
