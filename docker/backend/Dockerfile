@@ -5,7 +5,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
-RUN pip install --no-cache-dir uv
+# Native build deps: xmlsec / lxml require libxmlsec1, libxml2, and a C
+# toolchain. Runtime deps are in the final stage.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        libxml2-dev \
+        libxmlsec1-dev \
+        libxmlsec1-openssl \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir uv
 
 WORKDIR /app
 COPY backend/pyproject.toml ./
@@ -22,6 +31,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
         libldap-2.5-0 \
+        libxml2 \
+        libxmlsec1 \
+        libxmlsec1-openssl \
+        xmlsec1 \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g 1000 app \
     && useradd -u 1000 -g 1000 -d /app -m -s /usr/sbin/nologin app \

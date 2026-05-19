@@ -1,12 +1,16 @@
 import {
+  ActionIcon,
   Alert,
+  Anchor,
   Badge,
   Button,
   Card,
+  Divider,
   FileButton,
   Group,
   Loader,
   NumberInput,
+  Select,
   Stack,
   Text,
   TextInput,
@@ -16,10 +20,24 @@ import {
 import { useForm } from "@mantine/form";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
-import { IconAlertCircle, IconLock } from "@tabler/icons-react";
+import {
+  IconAlertCircle,
+  IconDownload,
+  IconLock,
+  IconTrash,
+} from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import {
+  useImportIdpMetadata,
+  useRegenerateSpKeypair,
+  useSamlStatus,
+  useUpdateSamlMapping,
+  type RoleMapping,
+  type SamlRole,
+  type SamlStatus,
+} from "@/api/saml";
 import {
   useLdapSettings,
   useUpdateLdapSettings,
@@ -60,7 +78,338 @@ export function SettingsPage() {
       <LdapCard currentValue={ldap.data.url} />
       <WebCard currentValue={web.data.base_url} />
       <TlsCard />
+      <SamlCard />
     </Stack>
+  );
+}
+
+function SamlCard() {
+  const { t } = useTranslation();
+  const status = useSamlStatus();
+  const regen = useRegenerateSpKeypair();
+
+  if (status.isPending) return <Loader />;
+  if (status.isError) {
+    return (
+      <Card withBorder padding="lg">
+        <Alert color="red" icon={<IconAlertCircle size={16} />} title={t("common.error")}>
+          {t("common.errorMessage", { message: errorToMessage(status.error) })}
+        </Alert>
+      </Card>
+    );
+  }
+  const s = status.data;
+  const onRegenerate = () => {
+    regen.mutate(null, {
+      onSuccess: () =>
+        notifications.show({
+          color: "green",
+          message: t("settings.samlKeypairRegenerated"),
+        }),
+      onError: (err) =>
+        notifications.show({
+          color: "red",
+          title: t("common.error"),
+          message: errorToMessage(err),
+        }),
+    });
+  };
+  return (
+    <Card withBorder padding="lg">
+      <Stack>
+        <Stack gap={4}>
+          <Title order={4}>{t("settings.samlTitle")}</Title>
+          <Text c="dimmed" size="sm">
+            {t("settings.samlDescription")}
+          </Text>
+          {!s.configured && (
+            <Alert color="yellow" variant="light" mt="xs">
+              {t("settings.samlUnconfiguredHint")}
+            </Alert>
+          )}
+        </Stack>
+
+        <SamlInfoTable status={s} />
+
+        <Group>
+          <Button variant="default" onClick={() => openIdpImportModal(t)}>
+            {t("settings.samlImportIdp")}
+          </Button>
+          <Button variant="default" onClick={onRegenerate} loading={regen.isPending}>
+            {t("settings.samlRegenerateKeypair")}
+          </Button>
+          {s.sp_has_keypair && s.configured && (
+            <Anchor
+              href="/api/v1/settings/saml/sp-metadata"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Group gap={4}>
+                <IconDownload size={14} />
+                {t("settings.samlDownloadSpMetadata")}
+              </Group>
+            </Anchor>
+          )}
+        </Group>
+
+        <Divider my="sm" />
+
+        <SamlMappingForm status={s} />
+      </Stack>
+    </Card>
+  );
+}
+
+function SamlInfoTable({ status }: { status: SamlStatus }) {
+  const { t } = useTranslation();
+  const rows: Array<[string, string]> = [
+    [t("settings.samlSpEntityId"), status.sp_entity_id ?? "—"],
+    [t("settings.samlSpAcsUrl"), status.sp_acs_url ?? "—"],
+    [
+      t("settings.samlSpKeypair"),
+      status.sp_has_keypair
+        ? t("settings.samlSpKeypairPresent")
+        : t("settings.samlSpKeypairMissing"),
+    ],
+    [t("settings.samlIdpEntityId"), status.idp_entity_id ?? "—"],
+    [t("settings.samlIdpSsoUrl"), status.idp_sso_url ?? "—"],
+    [
+      t("settings.samlIdpCert"),
+      status.idp_cert_present
+        ? t("settings.samlSpKeypairPresent")
+        : t("settings.samlIdpNoMetadata"),
+    ],
+  ];
+  return (
+    <Stack gap={4}>
+      {rows.map(([label, value]) => (
+        <Group key={label} gap="md" wrap="nowrap" align="flex-start">
+          <Text size="sm" c="dimmed" w={140} fw={500}>
+            {label}
+          </Text>
+          <Text size="sm" ff="monospace" style={{ wordBreak: "break-all" }}>
+            {value}
+          </Text>
+        </Group>
+      ))}
+    </Stack>
+  );
+}
+
+interface MappingFormValues {
+  group_attribute: string;
+  rows: RoleMapping[];
+}
+
+function SamlMappingForm({ status }: { status: SamlStatus }) {
+  const { t } = useTranslation();
+  const save = useUpdateSamlMapping();
+  const form = useForm<MappingFormValues>({
+    initialValues: {
+      group_attribute: status.group_attribute,
+      rows: status.role_mappings.length > 0 ? status.role_mappings : [],
+    },
+    validate: {
+      group_attribute: (v) =>
+        v.trim() === "" ? t("settings.samlGroupAttribute") : null,
+    },
+  });
+
+  useEffect(() => {
+    form.setFieldValue("group_attribute", status.group_attribute);
+    form.setFieldValue("rows", status.role_mappings);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status.group_attribute, status.role_mappings]);
+
+  const addRow = () =>
+    form.setFieldValue("rows", [
+      ...form.values.rows,
+      { ad_group: "", role: "viewer" as SamlRole },
+    ]);
+  const removeRow = (idx: number) =>
+    form.setFieldValue(
+      "rows",
+      form.values.rows.filter((_, i) => i !== idx),
+    );
+
+  const submit = form.onSubmit((values) => {
+    save.mutate(
+      {
+        group_attribute: values.group_attribute.trim(),
+        role_mappings: values.rows
+          .map((r) => ({ ad_group: r.ad_group.trim(), role: r.role }))
+          .filter((r) => r.ad_group.length > 0),
+      },
+      {
+        onSuccess: () =>
+          notifications.show({ color: "green", message: t("settings.samlMappingSaved") }),
+        onError: (err) =>
+          notifications.show({
+            color: "red",
+            title: t("common.error"),
+            message: errorToMessage(err),
+          }),
+      },
+    );
+  });
+
+  return (
+    <form onSubmit={submit}>
+      <Stack>
+        <Stack gap={4}>
+          <Text size="sm" fw={500}>
+            {t("settings.samlMapping")}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {t("settings.samlMappingDescription")}
+          </Text>
+        </Stack>
+        <TextInput
+          label={t("settings.samlGroupAttribute")}
+          description={t("settings.samlGroupAttributeHint")}
+          required
+          {...form.getInputProps("group_attribute")}
+        />
+        <Stack gap={6}>
+          {form.values.rows.map((row, idx) => (
+            <Group key={idx} gap="xs" align="flex-end">
+              <TextInput
+                label={idx === 0 ? t("settings.samlGroupValue") : undefined}
+                placeholder="CN=net-admins,OU=Groups,DC=corp,DC=example"
+                value={row.ad_group}
+                onChange={(e) => {
+                  const next = [...form.values.rows];
+                  next[idx] = { ...row, ad_group: e.currentTarget.value };
+                  form.setFieldValue("rows", next);
+                }}
+                flex={2}
+              />
+              <Select
+                label={idx === 0 ? t("settings.samlRole") : undefined}
+                data={[
+                  { value: "admin", label: "admin" },
+                  { value: "operator", label: "operator" },
+                  { value: "viewer", label: "viewer" },
+                ]}
+                value={row.role}
+                onChange={(v) => {
+                  const next = [...form.values.rows];
+                  next[idx] = { ...row, role: (v as SamlRole) ?? "viewer" };
+                  form.setFieldValue("rows", next);
+                }}
+                w={140}
+              />
+              <ActionIcon
+                variant="subtle"
+                color="red"
+                onClick={() => removeRow(idx)}
+                aria-label={t("common.delete")}
+              >
+                <IconTrash size={16} />
+              </ActionIcon>
+            </Group>
+          ))}
+          <Button variant="subtle" size="xs" onClick={addRow}>
+            {t("settings.samlAddMapping")}
+          </Button>
+        </Stack>
+        <Group justify="flex-end">
+          <Button type="submit" loading={save.isPending}>
+            {t("settings.samlSaveMapping")}
+          </Button>
+        </Group>
+      </Stack>
+    </form>
+  );
+}
+
+function openIdpImportModal(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+) {
+  const modalId = `saml-idp-import-${Date.now()}`;
+  modals.open({
+    modalId,
+    title: t("settings.samlImportTitle"),
+    size: "lg",
+    children: <IdpImportForm t={t} onClose={() => modals.close(modalId)} />,
+  });
+}
+
+function IdpImportForm({
+  t,
+  onClose,
+}: {
+  t: (key: string, opts?: Record<string, unknown>) => string;
+  onClose: () => void;
+}) {
+  const importIdp = useImportIdpMetadata();
+  const form = useForm({
+    initialValues: { xml: "" },
+    validate: {
+      xml: (v) =>
+        v.includes("EntityDescriptor") ? null : t("settings.samlMetadataXml"),
+    },
+  });
+  const [fileName, setFileName] = useState<string | null>(null);
+
+  const readFile = (file: File | null) => {
+    if (!file) return;
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result;
+      if (typeof result === "string") form.setFieldValue("xml", result);
+    };
+    reader.readAsText(file);
+  };
+
+  const submit = form.onSubmit((values) => {
+    importIdp.mutate(values.xml, {
+      onSuccess: () => {
+        notifications.show({ color: "green", message: t("settings.samlImported") });
+        onClose();
+      },
+      onError: (err) =>
+        notifications.show({
+          color: "red",
+          title: t("common.error"),
+          message: errorToMessage(err),
+        }),
+    });
+  });
+
+  return (
+    <form onSubmit={submit}>
+      <Stack>
+        <Text size="sm" c="dimmed">
+          {t("settings.samlImportHint")}
+        </Text>
+        <FileButton onChange={readFile} accept=".xml,application/xml,text/xml">
+          {(props) => (
+            <Button variant="default" {...props}>
+              {fileName ?? t("settings.samlMetadataXml")}
+            </Button>
+          )}
+        </FileButton>
+        <Textarea
+          label={t("settings.samlMetadataXml")}
+          autosize
+          minRows={6}
+          maxRows={20}
+          required
+          ff="monospace"
+          {...form.getInputProps("xml")}
+        />
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button type="submit" loading={importIdp.isPending}>
+            {t("settings.samlImportButton")}
+          </Button>
+        </Group>
+      </Stack>
+    </form>
   );
 }
 

@@ -4,6 +4,7 @@ import {
   Card,
   Center,
   Container,
+  Divider,
   PasswordInput,
   Stack,
   Text,
@@ -11,7 +12,7 @@ import {
   Title,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { IconAlertTriangle } from "@tabler/icons-react";
+import { IconAlertTriangle, IconShieldLock } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -76,6 +77,16 @@ export function LoginPage() {
                   {t("app.title")}
                 </Text>
               </Stack>
+              <Button
+                component="a"
+                href="/saml/login"
+                leftSection={<IconShieldLock size={16} />}
+                variant="filled"
+                fullWidth
+              >
+                {t("settings.samlSignInButton")}
+              </Button>
+              <Divider label="–" labelPosition="center" />
               <Alert
                 color="orange"
                 icon={<IconAlertTriangle size={16} />}
@@ -100,7 +111,7 @@ export function LoginPage() {
                       {t(errorKey)}
                     </Alert>
                   )}
-                  <Button type="submit" loading={login.isPending} fullWidth>
+                  <Button type="submit" loading={login.isPending} variant="default" fullWidth>
                     {t("login.submit")}
                   </Button>
                 </Stack>

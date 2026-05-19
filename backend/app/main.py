@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 
-from app.api import auth_local, health, internal_mavis
+from app.api import auth_local, health, internal_mavis, saml_routes
 from app.api.v1 import (
     authorizations,
     device_groups,
@@ -15,6 +15,7 @@ from app.api.v1 import (
     effective_permissions,
     principals,
     privilege_profiles,
+    settings_saml,
     settings_tls,
 )
 from app.api.v1 import (
@@ -43,6 +44,7 @@ app = FastAPI(
 
 app.include_router(health.router, prefix="/healthz", tags=["health"])
 app.include_router(auth_local.router, tags=["auth"])
+app.include_router(saml_routes.router, prefix="/saml", tags=["auth"])
 app.include_router(internal_mavis.router, prefix="/internal/mavis", tags=["internal"])
 
 # /api/v1/* sits behind the session dependency. Everything below uses the
@@ -101,6 +103,12 @@ app.include_router(
 app.include_router(
     settings_tls.router,
     prefix="/api/v1/settings/tls",
+    tags=["settings"],
+    dependencies=_API_V1_DEPS,
+)
+app.include_router(
+    settings_saml.router,
+    prefix="/api/v1/settings/saml",
     tags=["settings"],
     dependencies=_API_V1_DEPS,
 )
