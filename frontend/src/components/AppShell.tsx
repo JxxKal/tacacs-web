@@ -11,6 +11,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import {
   IconDashboard,
+  IconEye,
   IconHistory,
   IconKey,
   IconNetwork,
@@ -99,6 +100,12 @@ export function AppShell({ children }: Props) {
             to="/authorizations"
             label={t("nav.authorizations")}
             leftSection={<IconShieldLock size={16} />}
+          />
+          <NavLink
+            component={RouterNavLink}
+            to="/effective-permissions"
+            label={t("nav.effectivePermissions")}
+            leftSection={<IconEye size={16} />}
           />
           <NavLink
             component={RouterNavLink}

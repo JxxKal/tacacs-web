@@ -9,6 +9,7 @@ import { AuthorizationsPage } from "@/pages/AuthorizationsPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { DeviceGroupsPage } from "@/pages/DeviceGroupsPage";
 import { DevicesPage } from "@/pages/DevicesPage";
+import { EffectivePermissionsPage } from "@/pages/EffectivePermissionsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PrivilegeProfilesPage } from "@/pages/PrivilegeProfilesPage";
 import { SettingsPage } from "@/pages/SettingsPage";
@@ -31,6 +32,10 @@ export function App() {
       />
       <Route path="/devices" element={guarded(<DevicesPage />)} />
       <Route path="/authorizations" element={guarded(<AuthorizationsPage />)} />
+      <Route
+        path="/effective-permissions"
+        element={guarded(<EffectivePermissionsPage />)}
+      />
       <Route path="/audit-log" element={guarded(<AuditLogPage />)} />
       <Route path="/settings" element={guarded(<SettingsPage />)} />
       <Route path="*" element={<Navigate to="/" replace />} />

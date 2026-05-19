@@ -98,6 +98,24 @@
     "rotateHint": "The current secret moves into the previous slot; the new one becomes active.",
     "emptyState": "No devices yet. Add at least one to start receiving TACACS+ traffic."
   },
+  "effective": {
+    "title": "Effective permissions",
+    "subtitle": "For a chosen user, the winning Authorization per DeviceGroup (per ADR-0006: direct-user beats AD-group; otherwise highest priv-lvl wins). Overridden candidates are shown for traceability.",
+    "userPicker": "User",
+    "userPickerPlaceholder": "Pick an AD-synced user",
+    "noUserSelected": "Select a user to see their effective permissions.",
+    "emptyState": "This user has no matching Authorization on any DeviceGroup.",
+    "deviceGroupHeader": "Device group",
+    "winningHeader": "Winning",
+    "privLvlHeader": "Priv-lvl",
+    "viaHeader": "Via",
+    "overriddenHeader": "Overridden",
+    "viaDirect": "direct",
+    "viaAdGroup": "AD group",
+    "overriddenNone": "—",
+    "overriddenSummary": "{{count}} alternative",
+    "overriddenSummary_other": "{{count}} alternatives"
+  },
   "audit": {
     "title": "Audit log",
     "subtitle": "Append-only history of Web-UI auth events, CRUD changes, and live TACACS+ authn/authz from MAVIS. Admin-only.",

@@ -98,6 +98,24 @@
     "rotateHint": "Das aktuelle Secret wird zum vorherigen, das neue wird aktiv.",
     "emptyState": "Noch keine Geräte. Lege mindestens eines an, um TACACS+-Traffic zu empfangen."
   },
+  "effective": {
+    "title": "Effektive Berechtigungen",
+    "subtitle": "Für einen ausgewählten Benutzer: die gewinnende Authorization je DeviceGroup (ADR-0006: direkter User schlägt AD-Gruppe; sonst gewinnt höchster Priv-Level). Überstimmte Kandidaten werden zur Nachvollziehbarkeit angezeigt.",
+    "userPicker": "Benutzer",
+    "userPickerPlaceholder": "AD-synchronisierten Benutzer wählen",
+    "noUserSelected": "Wähle einen Benutzer, um dessen effektive Berechtigungen zu sehen.",
+    "emptyState": "Dieser Benutzer hat keine passende Authorization auf irgendeiner DeviceGroup.",
+    "deviceGroupHeader": "Gerätegruppe",
+    "winningHeader": "Gewinner",
+    "privLvlHeader": "Priv-Level",
+    "viaHeader": "Über",
+    "overriddenHeader": "Überstimmt",
+    "viaDirect": "direkt",
+    "viaAdGroup": "AD-Gruppe",
+    "overriddenNone": "—",
+    "overriddenSummary": "{{count}} Alternative",
+    "overriddenSummary_other": "{{count}} Alternativen"
+  },
   "audit": {
     "title": "Audit-Log",
     "subtitle": "Append-only-Historie der UI-Login-Events, CRUD-Änderungen und Live-TACACS+-Authn/Authz aus MAVIS. Nur für Admins.",
