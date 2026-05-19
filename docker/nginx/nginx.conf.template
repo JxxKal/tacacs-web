@@ -30,8 +30,9 @@ server {
     client_max_body_size 4m;
 
     # Backend-facing routes. Each prefix proxies to the FastAPI app; the
-    # SPA fall-through below catches everything else.
-    location ~ ^/(api|login|logout|me|healthz)(/|$) {
+    # SPA fall-through below catches everything else. `/saml/` covers the
+    # SP routes (/saml/login, /saml/acs, /saml/metadata).
+    location ~ ^/(api|login|logout|me|healthz|saml)(/|$) {
         proxy_pass http://${UPSTREAM_BACKEND};
         proxy_set_header Host              $host;
         proxy_set_header X-Real-IP         $remote_addr;
