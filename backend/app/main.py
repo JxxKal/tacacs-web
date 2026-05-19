@@ -15,6 +15,7 @@ from app.api.v1 import (
     effective_permissions,
     principals,
     privilege_profiles,
+    settings_ldap_sync,
     settings_saml,
     settings_tls,
 )
@@ -25,14 +26,17 @@ from app.auth.sessions import require_session
 from app.core.config import settings
 from app.core.logging import configure_logging
 from app.db.session import engine
+from app.ldap_sync import scheduler as ldap_scheduler
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.log_level)
+    ldap_scheduler.start_scheduler()
     try:
         yield
     finally:
+        ldap_scheduler.stop_scheduler()
         await engine.dispose()
 
 
@@ -109,6 +113,12 @@ app.include_router(
 app.include_router(
     settings_saml.router,
     prefix="/api/v1/settings/saml",
+    tags=["settings"],
+    dependencies=_API_V1_DEPS,
+)
+app.include_router(
+    settings_ldap_sync.router,
+    prefix="/api/v1/settings/ldap-sync",
     tags=["settings"],
     dependencies=_API_V1_DEPS,
 )

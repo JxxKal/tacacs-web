@@ -43,6 +43,11 @@ TLS_CERT_REGENERATED = "tls.cert_regenerated_self_signed"
 SAML_IDP_METADATA_IMPORTED = "saml.idp_metadata_imported"
 SAML_MAPPING_UPDATED = "saml.mapping_updated"
 SAML_SP_KEYPAIR_REGENERATED = "saml.sp_keypair_regenerated"
+LDAP_SYNC_CONFIG_UPDATED = "ldap_sync.config_updated"
+LDAP_SYNC_TEST_SUCCEEDED = "ldap_sync.test_succeeded"
+LDAP_SYNC_TEST_FAILED = "ldap_sync.test_failed"
+LDAP_SYNC_RUN_SUCCEEDED = "ldap_sync.run_succeeded"
+LDAP_SYNC_RUN_FAILED = "ldap_sync.run_failed"
 
 ALL_ACTIONS = frozenset(
     {
@@ -73,5 +78,10 @@ ALL_ACTIONS = frozenset(
         SAML_IDP_METADATA_IMPORTED,
         SAML_MAPPING_UPDATED,
         SAML_SP_KEYPAIR_REGENERATED,
+        LDAP_SYNC_CONFIG_UPDATED,
+        LDAP_SYNC_TEST_SUCCEEDED,
+        LDAP_SYNC_TEST_FAILED,
+        LDAP_SYNC_RUN_SUCCEEDED,
+        LDAP_SYNC_RUN_FAILED,
     }
 )

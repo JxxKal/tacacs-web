@@ -1,11 +1,19 @@
-"""Async SQLAlchemy engine + session factory."""
+"""Async SQLAlchemy engine + session factory.
+
+A parallel sync engine + sessionmaker lives here too for the AD-sync
+worker (ldap3 + the ORM sync helpers are synchronous; running them via
+asyncio.to_thread inside our async FastAPI app requires a thread-safe
+sync engine on the same DB).
+"""
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from urllib.parse import quote, urlparse, urlunparse
 
+from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import settings
 
@@ -37,3 +45,7 @@ async def get_session() -> AsyncIterator[AsyncSession]:
     """FastAPI dependency yielding one request-scoped async session."""
     async with SessionLocal() as session:
         yield session
+
+
+sync_engine = create_engine(resolve_database_url(), pool_pre_ping=True)
+SyncSessionLocal = sessionmaker(sync_engine, class_=Session, expire_on_commit=False)

@@ -30,6 +30,13 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
+  useLdapSyncStatus,
+  useRunLdapSync,
+  useTestLdapConnection,
+  useUpdateLdapSync,
+  type LdapSyncStatus,
+} from "@/api/ldapSync";
+import {
   useImportIdpMetadata,
   useRegenerateSpKeypair,
   useSamlStatus,
@@ -78,9 +85,294 @@ export function SettingsPage() {
       </Stack>
       <LdapCard currentValue={ldap.data.url} />
       <WebCard currentValue={web.data.base_url} />
+      <AdSyncCard />
       <TlsCard />
       <SamlCard />
     </Stack>
+  );
+}
+
+
+function AdSyncCard() {
+  const { t } = useTranslation();
+  const status = useLdapSyncStatus();
+  const save = useUpdateLdapSync();
+  const test = useTestLdapConnection();
+  const run = useRunLdapSync();
+
+  if (status.isPending) return <Loader />;
+  if (status.isError) {
+    return (
+      <Card withBorder padding="lg">
+        <Alert color="red" icon={<IconAlertCircle size={16} />} title={t("common.error")}>
+          {t("common.errorMessage", { message: errorToMessage(status.error) })}
+        </Alert>
+      </Card>
+    );
+  }
+  const s: LdapSyncStatus = status.data;
+  return (
+    <Card withBorder padding="lg">
+      <Stack>
+        <Stack gap={4}>
+          <Title order={4}>{t("settings.syncTitle")}</Title>
+          <Text c="dimmed" size="sm">
+            {t("settings.syncDescription")}
+          </Text>
+          {!s.configured && (
+            <Alert color="yellow" variant="light" mt="xs">
+              {t("settings.syncUnconfiguredHint")}
+            </Alert>
+          )}
+          <AdSyncLastRunBadge status={s} />
+        </Stack>
+        <AdSyncForm
+          status={s}
+          onSave={(payload) =>
+            save.mutate(payload, {
+              onSuccess: () =>
+                notifications.show({ color: "green", message: t("settings.syncSaved") }),
+              onError: (err) =>
+                notifications.show({
+                  color: "red",
+                  title: t("common.error"),
+                  message: errorToMessage(err),
+                }),
+            })
+          }
+          saving={save.isPending}
+        />
+        <Group>
+          <Button
+            variant="default"
+            loading={test.isPending}
+            onClick={() =>
+              test.mutate(
+                { url: null, bind_dn: null, bind_password: null },
+                {
+                  onSuccess: () =>
+                    notifications.show({
+                      color: "green",
+                      message: t("settings.syncTestSucceeded"),
+                    }),
+                  onError: (err) =>
+                    notifications.show({
+                      color: "red",
+                      title: t("common.error"),
+                      message: errorToMessage(err),
+                    }),
+                },
+              )
+            }
+            disabled={!s.bind_password_set}
+          >
+            {t("settings.syncTestButton")}
+          </Button>
+          <Button
+            loading={run.isPending}
+            onClick={() =>
+              run.mutate(undefined, {
+                onSuccess: () =>
+                  notifications.show({
+                    color: "green",
+                    message: t("settings.syncRunSucceeded"),
+                  }),
+                onError: (err) =>
+                  notifications.show({
+                    color: "red",
+                    title: t("common.error"),
+                    message: errorToMessage(err),
+                  }),
+              })
+            }
+            disabled={!s.configured}
+          >
+            {t("settings.syncRunButton")}
+          </Button>
+        </Group>
+      </Stack>
+    </Card>
+  );
+}
+
+function AdSyncLastRunBadge({ status }: { status: LdapSyncStatus }) {
+  const { t } = useTranslation();
+  if (!status.last_sync) {
+    return (
+      <Text size="xs" c="dimmed" mt="xs">
+        {t("settings.syncLastRunNever")}
+      </Text>
+    );
+  }
+  const ls = status.last_sync;
+  const when = new Date(ls.finished_at ?? ls.started_at).toLocaleString();
+  if (ls.error) {
+    return (
+      <Alert color="red" variant="light" mt="xs">
+        {t("settings.syncLastRunError", { when, error: ls.error })}
+      </Alert>
+    );
+  }
+  return (
+    <Alert color="green" variant="light" mt="xs">
+      {t("settings.syncLastRunOk", {
+        when,
+        seen: ls.users_seen,
+        inserted: ls.users_inserted,
+        updated: ls.users_updated,
+        disabled: ls.users_disabled,
+      })}
+    </Alert>
+  );
+}
+
+interface AdSyncFormValues {
+  bind_dn: string;
+  bind_password: string;
+  base_dns_text: string;
+  user_filter: string;
+  cadence_minutes: number;
+  enabled: boolean;
+}
+
+function AdSyncForm({
+  status,
+  onSave,
+  saving,
+}: {
+  status: LdapSyncStatus;
+  onSave: (payload: {
+    url: string | null;
+    bind_dn: string;
+    bind_password: string | null;
+    base_dns: string[];
+    user_filter: string | null;
+    cadence_seconds: number;
+    enabled: boolean;
+  }) => void;
+  saving: boolean;
+}) {
+  const { t } = useTranslation();
+  const form = useForm<AdSyncFormValues>({
+    initialValues: {
+      bind_dn: status.bind_dn ?? "",
+      bind_password: "",
+      base_dns_text: status.base_dns.join("\n"),
+      user_filter: status.user_filter ?? "",
+      cadence_minutes: Math.max(1, Math.round(status.cadence_seconds / 60)),
+      enabled: status.enabled,
+    },
+    validate: {
+      bind_dn: (v) => (v.trim() === "" ? t("settings.syncBindDn") : null),
+      base_dns_text: (v) =>
+        v
+          .split("\n")
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0).length === 0
+          ? t("settings.syncBaseDns")
+          : null,
+      cadence_minutes: (v) =>
+        v >= 1 && v <= 1440 ? null : t("settings.syncCadence"),
+    },
+  });
+
+  const baseDnsKey = status.base_dns.join("|");
+  useEffect(() => {
+    form.setValues({
+      bind_dn: status.bind_dn ?? "",
+      bind_password: "",
+      base_dns_text: status.base_dns.join("\n"),
+      user_filter: status.user_filter ?? "",
+      cadence_minutes: Math.max(1, Math.round(status.cadence_seconds / 60)),
+      enabled: status.enabled,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    status.bind_dn,
+    baseDnsKey,
+    status.user_filter,
+    status.cadence_seconds,
+    status.enabled,
+  ]);
+
+  const submit = form.onSubmit((values) => {
+    const base_dns = values.base_dns_text
+      .split("\n")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    onSave({
+      url: null, // managed in the LDAP settings card; reused by the worker.
+      bind_dn: values.bind_dn.trim(),
+      bind_password: values.bind_password.length > 0 ? values.bind_password : null,
+      base_dns,
+      user_filter: values.user_filter.trim() || null,
+      cadence_seconds: values.cadence_minutes * 60,
+      enabled: values.enabled,
+    });
+  });
+
+  return (
+    <form onSubmit={submit}>
+      <Stack>
+        <TextInput
+          label={t("settings.syncBindDn")}
+          placeholder={t("settings.syncBindDnPlaceholder")}
+          required
+          {...form.getInputProps("bind_dn")}
+        />
+        <TextInput
+          label={t("settings.syncBindPassword")}
+          type="password"
+          autoComplete="new-password"
+          description={
+            status.bind_password_set
+              ? t("settings.syncBindPasswordSetHint")
+              : t("settings.syncBindPasswordEmptyHint")
+          }
+          {...form.getInputProps("bind_password")}
+        />
+        <Textarea
+          label={t("settings.syncBaseDns")}
+          description={t("settings.syncBaseDnsHint")}
+          autosize
+          minRows={2}
+          required
+          ff="monospace"
+          {...form.getInputProps("base_dns_text")}
+        />
+        <TextInput
+          label={t("settings.syncUserFilter")}
+          placeholder={t("settings.syncUserFilterPlaceholder")}
+          ff="monospace"
+          {...form.getInputProps("user_filter")}
+        />
+        <Group grow align="flex-end">
+          <NumberInput
+            label={t("settings.syncCadence")}
+            min={1}
+            max={1440}
+            required
+            {...form.getInputProps("cadence_minutes")}
+          />
+          <Group justify="flex-end" gap="xs">
+            <input
+              type="checkbox"
+              id="sync-enabled"
+              checked={form.values.enabled}
+              onChange={(e) =>
+                form.setFieldValue("enabled", e.currentTarget.checked)
+              }
+            />
+            <label htmlFor="sync-enabled">{t("settings.syncEnabled")}</label>
+          </Group>
+        </Group>
+        <Group justify="flex-end">
+          <Button type="submit" loading={saving}>
+            {t("settings.save")}
+          </Button>
+        </Group>
+      </Stack>
+    </form>
   );
 }
 

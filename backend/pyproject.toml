@@ -21,6 +21,7 @@ dependencies = [
     "python3-saml>=1.16",
     "defusedxml>=0.7",
     "python-multipart>=0.0.9",
+    "apscheduler>=3.10",
 ]
 
 [project.scripts]
