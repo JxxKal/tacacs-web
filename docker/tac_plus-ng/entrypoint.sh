@@ -42,8 +42,16 @@ if [ ! -f "$DYNAMIC_FILE" ]; then
     cat > "$DYNAMIC_FILE" <<EOF
 host bootstrap {
     address = 0.0.0.0/0
+    address = ::/0
     key = "$TACACS_SHARED_SECRET"
     mavis backend = yes
+}
+
+# Match the docker healthcheck source so it doesn't fill the log.
+host healthcheck {
+    address = 127.0.0.1
+    address = ::1
+    key = "healthcheck-only-no-tacacs-traffic"
 }
 EOF
     chgrp 1000 "$DYNAMIC_FILE" 2>/dev/null || true

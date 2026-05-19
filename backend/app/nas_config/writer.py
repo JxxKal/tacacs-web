@@ -39,8 +39,19 @@ def _fallback_block(shared_secret: str) -> str:
     return (
         "host bootstrap {\n"
         "    address = 0.0.0.0/0\n"
+        "    address = ::/0\n"
         f'    key = "{safe_secret}"\n'
         "    mavis backend = yes\n"
+        "}\n"
+        "\n"
+        "# Docker healthcheck probes via TCP from the container's own\n"
+        "# loopback; matching it explicitly stops the log from filling\n"
+        "# with `connection request from ::1 ... rejected (host unknown)`\n"
+        "# every 15 seconds.\n"
+        "host healthcheck {\n"
+        "    address = 127.0.0.1\n"
+        "    address = ::1\n"
+        '    key = "healthcheck-only-no-tacacs-traffic"\n'
         "}\n"
     )
 
