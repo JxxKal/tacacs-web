@@ -63,13 +63,24 @@ class _FakeSession:
     3 (user with groups, devices, authorizations). We hand them back in
     sequence; over-consumption trips `IndexError` so the test signals a
     handler-shape regression loudly.
+
+    Also accepts `add()` and `commit()` no-ops so the M5+ audit-log
+    inserts inside the MAVIS handlers don't blow up; the audit content
+    itself is exercised by test_api_v1_audit_log against a real session.
     """
 
     def __init__(self, results: list[Any]) -> None:
         self._results = list(results)
+        self.added: list[Any] = []
 
     async def execute(self, _stmt: Any) -> _FakeResult:
         return _FakeResult(self._results.pop(0))
+
+    def add(self, obj: Any) -> None:
+        self.added.append(obj)
+
+    async def commit(self) -> None:
+        return None
 
 
 def _install_session(results: list[Any]) -> None:

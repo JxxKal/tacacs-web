@@ -49,6 +49,15 @@ LDAP_SYNC_TEST_FAILED = "ldap_sync.test_failed"
 LDAP_SYNC_RUN_SUCCEEDED = "ldap_sync.run_succeeded"
 LDAP_SYNC_RUN_FAILED = "ldap_sync.run_failed"
 
+# TACACS+ live-auth events from MAVIS. Higher volume than the auth.*
+# UI events — one row per NAS login attempt and one per authz
+# evaluation. Kept under their own prefix so operators can filter them
+# in/out without disrupting the UI/CRUD audit history.
+TACACS_AUTHN_SUCCEEDED = "tacacs.authn_succeeded"
+TACACS_AUTHN_FAILED = "tacacs.authn_failed"
+TACACS_AUTHZ_SUCCEEDED = "tacacs.authz_succeeded"
+TACACS_AUTHZ_FAILED = "tacacs.authz_failed"
+
 ALL_ACTIONS = frozenset(
     {
         LOCAL_ADMIN_BOOTSTRAPPED,
@@ -83,5 +92,9 @@ ALL_ACTIONS = frozenset(
         LDAP_SYNC_TEST_FAILED,
         LDAP_SYNC_RUN_SUCCEEDED,
         LDAP_SYNC_RUN_FAILED,
+        TACACS_AUTHN_SUCCEEDED,
+        TACACS_AUTHN_FAILED,
+        TACACS_AUTHZ_SUCCEEDED,
+        TACACS_AUTHZ_FAILED,
     }
 )

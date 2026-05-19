@@ -9,6 +9,7 @@
     "devices": "Geräte",
     "authorizations": "Berechtigungen",
     "effectivePermissions": "Effektive Berechtigungen",
+    "auditLog": "Audit-Log",
     "settings": "Einstellungen",
     "logout": "Abmelden"
   },
@@ -96,6 +97,28 @@
     "newSecret": "Neues Shared Secret",
     "rotateHint": "Das aktuelle Secret wird zum vorherigen, das neue wird aktiv.",
     "emptyState": "Noch keine Geräte. Lege mindestens eines an, um TACACS+-Traffic zu empfangen."
+  },
+  "audit": {
+    "title": "Audit-Log",
+    "subtitle": "Append-only-Historie der UI-Login-Events, CRUD-Änderungen und Live-TACACS+-Authn/Authz aus MAVIS. Nur für Admins.",
+    "filterAction": "Aktion",
+    "filterAuthMethod": "Auth-Methode",
+    "filterUsername": "Benutzer",
+    "filterSince": "Ab",
+    "filterUntil": "Bis",
+    "filterClear": "Filter zurücksetzen",
+    "tsHeader": "Zeit",
+    "actionHeader": "Aktion",
+    "actorHeader": "Akteur",
+    "targetHeader": "Ziel",
+    "summaryHeader": "Details",
+    "clientIpHeader": "Client-IP",
+    "authMethodAll": "Alle Methoden",
+    "actionAll": "Alle Aktionen",
+    "showing": "Zeige {{from}}–{{to}} von {{total}}",
+    "newer": "Neuere",
+    "older": "Ältere",
+    "empty": "Keine Audit-Einträge passen zu den aktuellen Filtern."
   },
   "settings": {
     "title": "Einstellungen",

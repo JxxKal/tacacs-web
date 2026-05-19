@@ -10,6 +10,7 @@ from fastapi import Depends, FastAPI
 from app.api import auth_local, health, internal_mavis, saml_routes
 from app.api.v1 import (
     admin,
+    audit_log,
     authorizations,
     device_groups,
     devices,
@@ -127,5 +128,11 @@ app.include_router(
     admin.router,
     prefix="/api/v1/admin",
     tags=["admin"],
+    dependencies=_API_V1_DEPS,
+)
+app.include_router(
+    audit_log.router,
+    prefix="/api/v1/audit-log",
+    tags=["audit-log"],
     dependencies=_API_V1_DEPS,
 )

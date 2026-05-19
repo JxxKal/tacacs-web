@@ -9,6 +9,7 @@
     "devices": "Devices",
     "authorizations": "Authorizations",
     "effectivePermissions": "Effective permissions",
+    "auditLog": "Audit log",
     "settings": "Settings",
     "logout": "Log out"
   },
@@ -96,6 +97,28 @@
     "newSecret": "New shared secret",
     "rotateHint": "The current secret moves into the previous slot; the new one becomes active.",
     "emptyState": "No devices yet. Add at least one to start receiving TACACS+ traffic."
+  },
+  "audit": {
+    "title": "Audit log",
+    "subtitle": "Append-only history of Web-UI auth events, CRUD changes, and live TACACS+ authn/authz from MAVIS. Admin-only.",
+    "filterAction": "Action",
+    "filterAuthMethod": "Auth method",
+    "filterUsername": "Username",
+    "filterSince": "Since",
+    "filterUntil": "Until",
+    "filterClear": "Clear filters",
+    "tsHeader": "When",
+    "actionHeader": "Action",
+    "actorHeader": "Actor",
+    "targetHeader": "Target",
+    "summaryHeader": "Summary",
+    "clientIpHeader": "Client IP",
+    "authMethodAll": "All methods",
+    "actionAll": "All actions",
+    "showing": "Showing {{from}}–{{to}} of {{total}}",
+    "newer": "Newer",
+    "older": "Older",
+    "empty": "No audit entries match the current filters."
   },
   "settings": {
     "title": "Settings",

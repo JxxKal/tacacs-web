@@ -111,11 +111,20 @@ def _post_json(
 
 
 def call_backend_auth(
-    username: str, password: str, *, opener: object | None = None
+    username: str,
+    password: str,
+    *,
+    nas_ip: str = "",
+    opener: object | None = None,
 ) -> tuple[str, str | None]:
+    """`nas_ip` is optional but recommended — the backend records it as
+    the client_ip on the audit-log row for the AUTH event."""
+    payload: dict[str, str] = {"username": username, "password": password}
+    if nas_ip:
+        payload["nas_ip"] = nas_ip
     result, reason, _profile = _post_json(
         "/internal/mavis/auth",
-        {"username": username, "password": password},
+        payload,
         opener=opener,
     )
     return result, reason
@@ -137,7 +146,7 @@ def handle(req: dict[int, str]) -> None:
         username = req.get(AV_USER, "")
         password = req.get(AV_PASSWORD, "")
         nas_ip = req.get(AV_SERVERIP, "")
-        result, _reason = call_backend_auth(username, password)
+        result, _reason = call_backend_auth(username, password, nas_ip=nas_ip)
         req[AV_RESULT] = result
         # tac_plus-ng's check_access path needs `user->profile` to be set
         # on a successful AUTH — otherwise eval_ruleset returns S_unknown

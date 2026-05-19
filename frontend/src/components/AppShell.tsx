@@ -11,6 +11,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import {
   IconDashboard,
+  IconHistory,
   IconKey,
   IconNetwork,
   IconServer2,
@@ -101,10 +102,16 @@ export function AppShell({ children }: Props) {
           />
           <NavLink
             component={RouterNavLink}
+            to="/audit-log"
+            label={t("nav.auditLog")}
+            leftSection={<IconHistory size={16} />}
+            mt="md"
+          />
+          <NavLink
+            component={RouterNavLink}
             to="/settings"
             label={t("nav.settings")}
             leftSection={<IconSettings size={16} />}
-            mt="md"
           />
         </Stack>
       </MantineAppShell.Navbar>
