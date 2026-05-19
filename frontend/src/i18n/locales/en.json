@@ -9,6 +9,7 @@
     "devices": "Devices",
     "authorizations": "Authorizations",
     "effectivePermissions": "Effective permissions",
+    "settings": "Settings",
     "logout": "Log out"
   },
   "common": {
@@ -95,6 +96,22 @@
     "newSecret": "New shared secret",
     "rotateHint": "The current secret moves into the previous slot; the new one becomes active.",
     "emptyState": "No devices yet. Add at least one to start receiving TACACS+ traffic."
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Runtime configuration. Changes take effect immediately and are recorded in the audit log.",
+    "ldapTitle": "Active Directory / LDAPS",
+    "ldapDescription": "Endpoint MAVIS binds to for live password verification. Use the ldaps:// scheme for TLS.",
+    "ldapUrl": "LDAP URL",
+    "ldapUrlPlaceholder": "ldaps://dc01.corp.example:636",
+    "ldapEmptyHint": "Not configured. The MAVIS AUTH path returns ERR (fail-closed) until an endpoint is set.",
+    "webTitle": "Public hostname",
+    "webDescription": "Canonical URL operators reach this UI on. Used for absolute links and (later) SAML callbacks.",
+    "webBaseUrl": "Base URL",
+    "webBaseUrlPlaceholder": "https://tacacs.corp.example:8443",
+    "webEmptyHint": "Falls back to the BASE_URL environment variable until configured here.",
+    "save": "Save",
+    "saved": "Settings saved"
   },
   "authorizations": {
     "title": "Authorizations",

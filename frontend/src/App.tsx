@@ -10,6 +10,7 @@ import { DeviceGroupsPage } from "@/pages/DeviceGroupsPage";
 import { DevicesPage } from "@/pages/DevicesPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PrivilegeProfilesPage } from "@/pages/PrivilegeProfilesPage";
+import { SettingsPage } from "@/pages/SettingsPage";
 
 const guarded = (page: ReactNode) => (
   <RequireSession>
@@ -29,6 +30,7 @@ export function App() {
       />
       <Route path="/devices" element={guarded(<DevicesPage />)} />
       <Route path="/authorizations" element={guarded(<AuthorizationsPage />)} />
+      <Route path="/settings" element={guarded(<SettingsPage />)} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

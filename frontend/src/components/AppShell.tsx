@@ -14,6 +14,7 @@ import {
   IconKey,
   IconNetwork,
   IconServer2,
+  IconSettings,
   IconShieldLock,
 } from "@tabler/icons-react";
 import { type ReactNode } from "react";
@@ -97,6 +98,13 @@ export function AppShell({ children }: Props) {
             to="/authorizations"
             label={t("nav.authorizations")}
             leftSection={<IconShieldLock size={16} />}
+          />
+          <NavLink
+            component={RouterNavLink}
+            to="/settings"
+            label={t("nav.settings")}
+            leftSection={<IconSettings size={16} />}
+            mt="md"
           />
         </Stack>
       </MantineAppShell.Navbar>

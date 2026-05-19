@@ -9,6 +9,7 @@
     "devices": "Geräte",
     "authorizations": "Berechtigungen",
     "effectivePermissions": "Effektive Berechtigungen",
+    "settings": "Einstellungen",
     "logout": "Abmelden"
   },
   "common": {
@@ -95,6 +96,22 @@
     "newSecret": "Neues Shared Secret",
     "rotateHint": "Das aktuelle Secret wird zum vorherigen, das neue wird aktiv.",
     "emptyState": "Noch keine Geräte. Lege mindestens eines an, um TACACS+-Traffic zu empfangen."
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "subtitle": "Laufzeit-Konfiguration. Änderungen wirken sofort und werden im Audit-Log protokolliert.",
+    "ldapTitle": "Active Directory / LDAPS",
+    "ldapDescription": "Endpunkt, gegen den MAVIS die Passwort-Verifizierung bindet. Für TLS das ldaps://-Schema verwenden.",
+    "ldapUrl": "LDAP-URL",
+    "ldapUrlPlaceholder": "ldaps://dc01.corp.example:636",
+    "ldapEmptyHint": "Nicht konfiguriert. Der MAVIS-AUTH-Pfad liefert ERR (Fail-Closed), bis ein Endpunkt gesetzt ist.",
+    "webTitle": "Öffentlicher Hostname",
+    "webDescription": "Kanonische URL, unter der Operatoren die UI erreichen. Wird für absolute Links und (später) SAML-Callbacks genutzt.",
+    "webBaseUrl": "Base-URL",
+    "webBaseUrlPlaceholder": "https://tacacs.corp.example:8443",
+    "webEmptyHint": "Fällt auf die BASE_URL-Umgebungsvariable zurück, bis hier gesetzt.",
+    "save": "Speichern",
+    "saved": "Einstellungen gespeichert"
   },
   "authorizations": {
     "title": "Berechtigungen",

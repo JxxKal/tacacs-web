@@ -16,6 +16,9 @@ from app.api.v1 import (
     principals,
     privilege_profiles,
 )
+from app.api.v1 import (
+    settings as v1_settings,
+)
 from app.auth.sessions import require_session
 from app.core.config import settings
 from app.core.logging import configure_logging
@@ -86,5 +89,11 @@ app.include_router(
     principals.ad_groups_router,
     prefix="/api/v1/ad-groups",
     tags=["principals"],
+    dependencies=_API_V1_DEPS,
+)
+app.include_router(
+    v1_settings.router,
+    prefix="/api/v1/settings",
+    tags=["settings"],
     dependencies=_API_V1_DEPS,
 )

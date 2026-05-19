@@ -34,6 +34,10 @@ PRIVILEGE_PROFILE_DELETED = "privilege_profile.deleted"
 AUTHORIZATION_CREATED = "authorization.created"
 AUTHORIZATION_DELETED = "authorization.deleted"
 
+# System-settings changes
+SETTING_LDAP_URL_UPDATED = "setting.ldap_url_updated"
+SETTING_WEB_BASE_URL_UPDATED = "setting.web_base_url_updated"
+
 ALL_ACTIONS = frozenset(
     {
         LOCAL_ADMIN_BOOTSTRAPPED,
@@ -55,5 +59,7 @@ ALL_ACTIONS = frozenset(
         PRIVILEGE_PROFILE_DELETED,
         AUTHORIZATION_CREATED,
         AUTHORIZATION_DELETED,
+        SETTING_LDAP_URL_UPDATED,
+        SETTING_WEB_BASE_URL_UPDATED,
     }
 )
