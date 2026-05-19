@@ -136,11 +136,19 @@ def handle(req: dict[int, str]) -> None:
     if tactype == "AUTH":
         username = req.get(AV_USER, "")
         password = req.get(AV_PASSWORD, "")
+        nas_ip = req.get(AV_SERVERIP, "")
         result, _reason = call_backend_auth(username, password)
         req[AV_RESULT] = result
-        # AUTH no longer carries a profile; the daemon will INFO-lookup the
-        # user separately to fetch the per-NAS profile. Returning a profile
-        # here would be ignored at best, and risks shadowing the right one.
+        # tac_plus-ng's check_access path needs `user->profile` to be set
+        # on a successful AUTH — otherwise eval_ruleset returns S_unknown
+        # and the daemon emits "denied by ACL". Upstream's MAVIS demo
+        # therefore returns the user profile on every response (AUTH and
+        # INFO alike). Mirror that here by piggybacking an INFO lookup
+        # on top of an ACK'd AUTH and attaching the resulting profile.
+        if result == RESULT_OK and nas_ip:
+            info_result, _info_reason, profile = call_backend_info(username, nas_ip)
+            if info_result == RESULT_OK and profile is not None:
+                req[AV_TACPROFILE] = profile
     elif tactype == "INFO":
         username = req.get(AV_USER, "")
         nas_ip = req.get(AV_SERVERIP, "")

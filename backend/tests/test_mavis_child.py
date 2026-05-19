@@ -92,12 +92,48 @@ def test_call_backend_auth_bad_response_shape(mc: ModuleType) -> None:
     assert mc.call_backend_auth("jan", "x", opener=opener) == ("ERR", "backend_bad_response")
 
 
-def test_handle_auth_no_profile_on_ack(
+def test_handle_auth_attaches_profile_via_info_piggyback(
     mc: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # In M4 the daemon does a separate INFO lookup to get the profile; AUTH
-    # should return only the verdict, never a stale permit-everything block.
+    """tac_plus-ng's check_access denies with `denied by ACL` if the user
+    profile isn't attached on the AUTH response. Mirror the upstream
+    MAVIS demo by piggybacking the INFO profile onto a successful AUTH.
+    """
+    captured: list[tuple[str, str]] = []
+
+    def fake_info(
+        username: str, nas_ip: str, *, opener: object | None = None
+    ) -> tuple[str, str | None, str | None]:
+        captured.append((username, nas_ip))
+        return "ACK", None, "{ profile { script { permit } } }"
+
     monkeypatch.setattr(mc, "call_backend_auth", lambda u, p: ("ACK", None))
+    monkeypatch.setattr(mc, "call_backend_info", fake_info)
+    out = _capture_response(
+        mc,
+        {
+            mc.AV_TACTYPE: "AUTH",
+            mc.AV_USER: "jan",
+            mc.AV_PASSWORD: "x",
+            mc.AV_SERVERIP: "10.1.2.3",
+        },
+    )
+    assert out[mc.AV_RESULT] == "ACK"
+    assert "permit" in out[mc.AV_TACPROFILE]
+    assert captured == [("jan", "10.1.2.3")]
+
+
+def test_handle_auth_skips_info_piggyback_without_nas_ip(
+    mc: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If somehow AV_SERVERIP isn't set, AUTH still returns ACK but no
+    profile (rather than crashing on the empty nas_ip)."""
+    monkeypatch.setattr(mc, "call_backend_auth", lambda u, p: ("ACK", None))
+
+    def fake_info_must_not_run(*_a: object, **_k: object) -> tuple[str, str | None, str | None]:
+        raise AssertionError("call_backend_info should not run without nas_ip")
+
+    monkeypatch.setattr(mc, "call_backend_info", fake_info_must_not_run)
     out = _capture_response(mc, {mc.AV_TACTYPE: "AUTH", mc.AV_USER: "jan", mc.AV_PASSWORD: "x"})
     assert out[mc.AV_RESULT] == "ACK"
     assert mc.AV_TACPROFILE not in out
