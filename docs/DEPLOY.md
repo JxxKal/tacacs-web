@@ -24,6 +24,7 @@ operational consequences.
 | RAM | 2 GB | Postgres, backend, daemon, nginx, build cache |
 | Disk | 10 GB | Postgres data + image layers grow with accounting (M6) |
 | Open ports outbound | 636/tcp to AD | LDAPS bind, both sync and live-bind |
+| Outbound HTTP(S) during install | reach to `ghcr.io` / `docker.io` / `pypi.org` / `npmjs.com` / GitHub releases / upstream `tac_plus-ng` repo | Only required during `docker compose build`. If you're behind a corporate proxy, see [3.0 Behind a corporate proxy](#30-behind-a-corporate-proxy-skip-if-you-have-direct-internet). |
 | Open ports inbound | 49/tcp from NAS devices; 8443/tcp from operator browsers (override via `HTTPS_HOST_PORT`) | HTTPS only; no plain-HTTP listener is exposed. |
 
 The stack is single-host. HA / clustering is explicitly out of scope for v1.
@@ -54,6 +55,98 @@ These follow directly from the ADRs and shape every step below:
 ## 3. First-time setup
 
 All commands run from the repo root unless noted.
+
+### 3.0 Behind a corporate proxy (skip if you have direct internet)
+
+OT hosts usually only reach the public internet through an HTTP/HTTPS
+proxy. Three separate clients need to know about it during the install:
+`git` (for the clone), the Docker **daemon** (for pulling base images),
+and the Docker **build** stages (so `apt-get`, `npm`, `uv` and the
+upstream `tac_plus-ng` checkout can reach their package repos). Wiring
+each one independently is what trips most first-time installs.
+
+**Shell variables.** Set both lower- and upper-case forms — some tools
+read one, some the other:
+
+```sh
+export http_proxy=http://proxy.corp.example:3128
+export https_proxy=http://proxy.corp.example:3128
+export HTTP_PROXY=$http_proxy
+export HTTPS_PROXY=$https_proxy
+# Anything that must stay direct. Docker's embedded DNS routes container
+# names like `backend` / `db` through here; without it Postgres calls
+# would try to traverse the proxy and fail.
+export no_proxy=localhost,127.0.0.1,::1,backend,db,tac_plus-ng,nginx,.corp.example
+export NO_PROXY=$no_proxy
+```
+
+Drop these into `/etc/profile.d/proxy.sh` or `~/.bashrc` so reconnects
+don't lose them.
+
+**Git.** With the env vars above, `git clone` over HTTPS works
+directly. If git ignores them (older versions, restricted shells):
+
+```sh
+git config --global http.proxy  $http_proxy
+git config --global https.proxy $https_proxy
+```
+
+**Docker daemon (image pulls).** The daemon does NOT inherit the user
+shell. Either configure systemd:
+
+```sh
+sudo mkdir -p /etc/systemd/system/docker.service.d
+sudo tee /etc/systemd/system/docker.service.d/proxy.conf >/dev/null <<EOF
+[Service]
+Environment="HTTP_PROXY=$http_proxy"
+Environment="HTTPS_PROXY=$https_proxy"
+Environment="NO_PROXY=$no_proxy"
+EOF
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+```
+
+…or per-user via `~/.docker/config.json` (newer Docker CLIs auto-pass
+this to the daemon for pulls and propagate to builds):
+
+```json
+{
+  "proxies": {
+    "default": {
+      "httpProxy":  "http://proxy.corp.example:3128",
+      "httpsProxy": "http://proxy.corp.example:3128",
+      "noProxy":    "localhost,127.0.0.1,backend,db,tac_plus-ng,nginx,.corp.example"
+    }
+  }
+}
+```
+
+**Docker build (apt / npm / uv inside `Dockerfile`s).** BuildKit
+propagates `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` from the build
+environment automatically. If your shell exports them, `docker compose
+build` picks them up. To be explicit (and to survive a fresh CI runner
+or a `sudo` that drops env):
+
+```sh
+docker compose -f docker/compose.yml build \
+  --build-arg HTTP_PROXY=$http_proxy \
+  --build-arg HTTPS_PROXY=$https_proxy \
+  --build-arg NO_PROXY=$no_proxy
+```
+
+**Proxy with TLS interception (Zscaler, Forcepoint, …).** If your
+proxy MITMs HTTPS with its own root CA, the `apt-get` / `npm` / `uv`
+calls inside the build stages will fail with `certificate verify
+failed`. Drop the corporate CA bundle into `secrets/corp-ca.pem` and
+mount it during the build — see the troubleshooting table at the
+bottom of this document for the exact recipe; the dependency-fetch
+stages are the only ones that need it.
+
+**Runtime traffic.** Once the stack is up the containers only talk to
+each other (over Docker's internal bridge), to AD on 636/tcp, and
+optionally to your SIEM for the syslog forwarder (M6c). None of that
+goes through the HTTP proxy, so once the build is done you can stop
+worrying about it.
 
 ### 3.1 Clone
 
@@ -101,6 +194,12 @@ docker compose -f docker/compose.yml up -d --build
 The build takes ~3-5 min on first run (the `tac_plus-ng` container is
 compiled from upstream source; the SPA is built with Vite). Subsequent
 restarts skip rebuilding unless you change source files.
+
+> Behind a corporate proxy? Make sure the steps in
+> [3.0](#30-behind-a-corporate-proxy-skip-if-you-have-direct-internet)
+> are done first — without them the build either fails at the base-image
+> pull (daemon proxy missing) or inside one of the dependency-install
+> stages (build-arg proxy missing).
 
 Verify all services are healthy:
 
@@ -362,7 +461,9 @@ deployer knows what to expect.
 | TACACS auth from a NAS fails with `tac_plus-ng` logging `bad secret`. | The shared secret on the NAS does not match `TACACS_SHARED_SECRET` in `docker/.env`. Rotate both sides in lock-step. |
 | TACACS auth fails with the daemon logging `MAVIS ERR`. | Backend unreachable from the `tac_plus-ng` container, or LDAP unreachable from the backend. Check `docker compose logs backend` for the `/internal/mavis/auth` traffic. ADR-0002's fail-closed semantics make AD-down look like an error rather than a deny. |
 | Operator gets `ACCEPT` on authn but `REJECT` on the next shell-session authz. | No matching Authorization for the resolved `(user, device_group)`. Inspect the Effective Permissions view (route lives at `/api/v1/users/{id}/effective-permissions`; UI page pending). |
-| `npm run build` of the frontend silently times out behind a proxy. | The `node:22-alpine` build stage cannot reach the npm registry. Add `npm_config_registry` or set `http_proxy` / `https_proxy` on the build args. |
+| `npm run build` of the frontend silently times out behind a proxy. | The `node:22-alpine` build stage cannot reach the npm registry. Set `http_proxy` / `https_proxy` in the shell **and** pass them via `--build-arg` (see [3.0](#30-behind-a-corporate-proxy-skip-if-you-have-direct-internet)). |
+| `docker compose pull` / build dies with `failed to resolve reference ...: dial tcp: lookup ghcr.io: i/o timeout`. | The Docker **daemon** isn't using the proxy. Shell env doesn't propagate to it — apply the systemd override or `~/.docker/config.json` recipe in [3.0](#30-behind-a-corporate-proxy-skip-if-you-have-direct-internet). |
+| Build inside a stage fails with `certificate verify failed` against pypi / npm / apt mirrors. | Proxy is doing TLS interception. Bake the corporate CA into the build: `cp /etc/ssl/certs/corp-root.pem secrets/corp-ca.pem` and add `COPY secrets/corp-ca.pem /usr/local/share/ca-certificates/corp.crt && update-ca-certificates` near the top of the affected `Dockerfile` (backend / nginx / tac_plus-ng each have their own; the npm one also needs `npm config set cafile /usr/local/share/ca-certificates/corp.crt`). |
 | Cookie not sent on a fresh login — `/me` immediately returns 401. | You are talking HTTP to a backend that emits `Secure` cookies. Always reach the UI via HTTPS through nginx; the bootstrap self-signed cert is enough. |
 
 When in doubt, both the integration smoke (`scripts/smoke-tacacs.py`)
