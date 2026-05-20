@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 
+from app.accounting import ingestor as acct_ingestor
 from app.api import auth_local, health, internal_mavis, saml_routes
 from app.api.v1 import (
     admin,
@@ -35,9 +36,11 @@ from app.ldap_sync import scheduler as ldap_scheduler
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.log_level)
     ldap_scheduler.start_scheduler()
+    acct_ingestor.start_ingestor()
     try:
         yield
     finally:
+        await acct_ingestor.stop_ingestor()
         ldap_scheduler.stop_scheduler()
         await engine.dispose()
 

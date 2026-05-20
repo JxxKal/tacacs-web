@@ -56,6 +56,9 @@ services:
       # rendered hosts.cfg here, the daemon-side inotify sidecar
       # SIGHUPs tac_plus-ng on every change.
       - tac-plus-ng-config:/var/lib/tacacs-web/tac_plus-ng
+      # Shared with the tac_plus-ng container; daemon writes the
+      # accounting log here, the backend's ingestor tails it.
+      - tac-plus-ng-acct:/var/log/tac_plus-ng
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz/ready"]
       interval: 15s
@@ -84,7 +87,8 @@ services:
       # entrypoint's inotify loop watches the directory and SIGHUPs the
       # daemon on change.
       - tac-plus-ng-config:/etc/tac_plus-ng/dynamic
-    # M6 will mount tacacs-acct here once the accounting-ingestor lands.
+      # Daemon writes the accounting log here; backend's ingestor tails it.
+      - tac-plus-ng-acct:/var/log/tac_plus-ng
     ports:
       - "${TACACS_BIND_ADDR:-0.0.0.0}:49:49/tcp"
     healthcheck:
@@ -159,6 +163,7 @@ volumes:
   postgres-data:
   tls-state:
   tac-plus-ng-config:
+  tac-plus-ng-acct:
 
 networks:
   internal:

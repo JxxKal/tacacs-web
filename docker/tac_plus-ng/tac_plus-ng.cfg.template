@@ -30,6 +30,15 @@ id = tac_plus-ng {
     login backend = mavis chpass
     pap backend = mavis
 
+    # Accounting log -> shared volume; backend ingestor tails this file.
+    # Explicit TSV format with 8 fields so the parser doesn't depend on
+    # whichever default tac_plus-ng's source happens to use.
+    log acctlog {
+        destination = /var/log/tac_plus-ng/accounting.log
+        accounting format = "${time}\t${nas}\t${user}\t${port}\t${nac}\t${task_id}\t${accttype}\t${args}"
+    }
+    accounting log = acctlog
+
     include "/etc/tac_plus-ng/dynamic/hosts.cfg"
 
     profile admin {
