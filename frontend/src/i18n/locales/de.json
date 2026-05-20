@@ -48,7 +48,16 @@
   "dashboard": {
     "welcome": "Willkommen, {{username}}",
     "authMethod": "Angemeldet via {{method}}",
-    "role": "Rolle: {{role}}"
+    "role": "Rolle: {{role}}",
+    "accessTitle": "Deine TACACS-Zugriffsrechte",
+    "accessSubtitle": "Pro Gerätegruppe das gewinnende Berechtigungsprofil samt zugehöriger Geräte. Konflikte werden gemäß ADR-0006 aufgelöst.",
+    "accessNotTacacs": "Du loggst dich aktuell nicht via TACACS ein (lokaler Break-Glass-Admin oder noch nicht aus dem AD synchronisiert). Daher sind hier keine TACACS-Zugriffsrechte zugeordnet.",
+    "accessNoGrants": "{{username}} ist im AD-Sync vorhanden, hat aber aktuell keine Berechtigung zugewiesen.",
+    "accessPrivLvl": "priv {{lvl}}",
+    "accessViaGroup": "via {{group}}",
+    "accessDeviceCount": "{{count}} Gerät(e)",
+    "accessMoreDevices": "… +{{count}} weitere",
+    "accessGroupEmpty": "Gerätegruppe hat aktuell keine Geräte."
   },
   "deviceGroups": {
     "title": "Gerätegruppen",

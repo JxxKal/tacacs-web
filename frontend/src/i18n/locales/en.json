@@ -48,7 +48,16 @@
   "dashboard": {
     "welcome": "Welcome, {{username}}",
     "authMethod": "Authenticated via {{method}}",
-    "role": "Role: {{role}}"
+    "role": "Role: {{role}}",
+    "accessTitle": "Your TACACS access",
+    "accessSubtitle": "Per device group: the winning privilege profile plus the devices it covers. Conflicts are resolved per ADR-0006.",
+    "accessNotTacacs": "You are not signing in via TACACS right now (break-glass local admin, or not yet synced from AD). No TACACS grants are attached to this session.",
+    "accessNoGrants": "{{username}} is present in the AD sync but has no authorizations assigned yet.",
+    "accessPrivLvl": "priv {{lvl}}",
+    "accessViaGroup": "via {{group}}",
+    "accessDeviceCount": "{{count}} device(s)",
+    "accessMoreDevices": "… +{{count}} more",
+    "accessGroupEmpty": "Device group is currently empty."
   },
   "deviceGroups": {
     "title": "Device groups",

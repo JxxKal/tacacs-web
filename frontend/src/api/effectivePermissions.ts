@@ -33,3 +33,36 @@ export function useEffectivePermissions(userId: number | null) {
     enabled: userId !== null,
   });
 }
+
+const DeviceSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  ip_or_cidr: z.string(),
+});
+
+const MyAccessGroupSchema = z.object({
+  device_group_id: z.number(),
+  device_group_name: z.string(),
+  tacacs_priv_lvl: z.number().int(),
+  privilege_profile_name: z.string(),
+  via_ad_group_name: z.string().nullable(),
+  devices: z.array(DeviceSchema),
+  device_count: z.number().int(),
+});
+
+const MyAccessSchema = z.object({
+  tacacs_username: z.string().nullable(),
+  display_name: z.string().nullable(),
+  groups: z.array(MyAccessGroupSchema),
+});
+
+export type MyAccessGroup = z.infer<typeof MyAccessGroupSchema>;
+export type MyAccess = z.infer<typeof MyAccessSchema>;
+
+export function useMyAccess() {
+  return useQuery({
+    queryKey: ["me", "access"] as const,
+    queryFn: ({ signal }) =>
+      apiRequest("/api/v1/me/access", MyAccessSchema, { signal }),
+  });
+}
