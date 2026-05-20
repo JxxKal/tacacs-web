@@ -35,7 +35,12 @@ id = tac_plus-ng {
     # whichever default tac_plus-ng's source happens to use.
     log acctlog {
         destination = /var/log/tac_plus-ng/accounting.log
-        accounting format = "${timestamp}\t${nas}\t${user}\t${port}\t${nac}\t${task_id}\t${accttype}\t${args}"
+        # Token names are case-sensitive in tac_plus-ng's parser
+        # (TIMESTAMP is uppercase, the rest lowercase). There is no
+        # ${task_id} variable — the daemon's per-session correlator is
+        # ${session_id}; the Cisco-style task_id arrives inside ${args}
+        # and the Python ingestor pulls it from there if needed.
+        accounting format = "${TIMESTAMP}\t${nas}\t${user}\t${port}\t${nac}\t${session_id}\t${accttype}\t${args}"
     }
     accounting log = acctlog
 
