@@ -42,6 +42,7 @@ from app.syslog.forwarder import (
     SETTING_APP_NAME,
     SETTING_FACILITY,
     SETTING_HOSTNAME,
+    SETTING_LAST_AUDIT_ID,
     SETTING_LAST_ERROR,
     SETTING_LAST_ERROR_AT,
     SETTING_TLS_SERVER_NAME,
@@ -65,6 +66,7 @@ class SyslogStatusRead(BaseModel):
     tls_client_cert_present: bool
     tls_client_key_present: bool
     last_forwarded_id: int
+    last_audit_id: int
     last_error: str | None
     last_error_at: datetime | None
 
@@ -131,6 +133,8 @@ async def _read_status(session: AsyncSession) -> SyslogStatusRead:
     cfg = await load_config(session)
     last_id_raw = await _read(session, SETTING_LAST_ID) or "0"
     last_id = int(last_id_raw) if last_id_raw.isdigit() else 0
+    last_audit_raw = await _read(session, SETTING_LAST_AUDIT_ID) or "0"
+    last_audit_id = int(last_audit_raw) if last_audit_raw.isdigit() else 0
     last_error = await _read(session, SETTING_LAST_ERROR)
     last_error_at_raw = await _read(session, SETTING_LAST_ERROR_AT)
     last_error_at: datetime | None = None
@@ -153,6 +157,7 @@ async def _read_status(session: AsyncSession) -> SyslogStatusRead:
         tls_client_cert_present=cfg.tls_client_cert_pem is not None,
         tls_client_key_present=cfg.tls_client_key_pem is not None,
         last_forwarded_id=last_id,
+        last_audit_id=last_audit_id,
         last_error=last_error,
         last_error_at=last_error_at,
     )

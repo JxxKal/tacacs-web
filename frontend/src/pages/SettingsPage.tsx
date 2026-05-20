@@ -133,7 +133,10 @@ function SyslogCard() {
           )}
           {s.enabled && (
             <Text size="xs" c="dimmed">
-              {t("settings.syslogLastForwarded", { id: s.last_forwarded_id })}
+              {t("settings.syslogLastForwarded", {
+                acct: s.last_forwarded_id,
+                audit: s.last_audit_id,
+              })}
             </Text>
           )}
           {s.last_error && (

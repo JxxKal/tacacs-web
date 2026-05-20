@@ -17,6 +17,7 @@ const StatusSchema = z.object({
   tls_client_cert_present: z.boolean(),
   tls_client_key_present: z.boolean(),
   last_forwarded_id: z.number(),
+  last_audit_id: z.number(),
   last_error: z.string().nullable(),
   last_error_at: z.string().nullable(),
 });

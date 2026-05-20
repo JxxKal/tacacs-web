@@ -11,10 +11,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.sessions import SessionContext, require_session
-from app.db.models import AccountingRecord
+from app.db.models import AccountingRecord, AuditLog
 from app.db.session import get_session
 from app.main import app
-from app.syslog.forwarder import SyslogConfig, format_rfc5424
+from app.syslog.forwarder import (
+    SyslogConfig,
+    format_rfc5424,
+    format_rfc5424_audit,
+)
 
 
 def _cfg(**overrides: object) -> SyslogConfig:
@@ -109,6 +113,64 @@ def test_format_handles_naive_timestamp() -> None:
     line = format_rfc5424(rec, _cfg())
     # Falls back to UTC interpretation.
     assert re.search(r"2026-05-20T17:00:00\.000Z", line)
+
+
+# --------------- audit-log formatter -------------------------------------
+
+
+def _audit(**kwargs: object) -> AuditLog:
+    row = AuditLog(
+        ts=kwargs.pop("ts", datetime(2026, 5, 20, 17, 0, 0, 0, tzinfo=UTC)),
+        actor_id=kwargs.pop("actor_id", 1),
+        actor_username_snapshot=kwargs.pop("actor_username_snapshot", "alice"),
+        actor_role=kwargs.pop("actor_role", "admin"),
+        auth_method=kwargs.pop("auth_method", "tacacs"),
+        action=kwargs.pop("action", "tacacs.authn_succeeded"),
+        target_type=kwargs.pop("target_type", "device"),
+        target_id=kwargs.pop("target_id", 42),
+        summary=kwargs.pop("summary", "shell login ok"),
+        client_ip=kwargs.pop("client_ip", "10.0.0.50"),
+        user_agent=kwargs.pop("user_agent", None),
+    )
+    for k, v in kwargs.items():
+        setattr(row, k, v)
+    return row
+
+
+def test_audit_format_pri_info_severity_for_success() -> None:
+    line = format_rfc5424_audit(_audit(action="tacacs.authn_succeeded"), _cfg())
+    # facility 16 * 8 + severity 6 = 134
+    assert line.startswith("<134>1 ")
+
+
+def test_audit_format_pri_warning_severity_for_failure() -> None:
+    line = format_rfc5424_audit(_audit(action="tacacs.authn_failed"), _cfg())
+    # facility 16 * 8 + severity 4 = 132
+    assert line.startswith("<132>1 ")
+
+
+def test_audit_format_carries_modeled_columns_in_sd() -> None:
+    line = format_rfc5424_audit(_audit(), _cfg())
+    assert 'action="tacacs.authn_succeeded"' in line
+    assert 'actor="alice"' in line
+    assert 'role="admin"' in line
+    assert 'auth_method="tacacs"' in line
+    assert 'target_type="device"' in line
+    assert 'target_id="42"' in line
+    assert 'client_ip="10.0.0.50"' in line
+
+
+def test_audit_format_msg_body_prefixes_with_actor() -> None:
+    line = format_rfc5424_audit(_audit(summary="bad password"), _cfg())
+    body = line.rsplit("] ", 1)[1]
+    assert body == "alice: bad password"
+
+
+def test_audit_format_msgid_is_audit() -> None:
+    line = format_rfc5424_audit(_audit(), _cfg())
+    # <PRI>1 TIMESTAMP HOSTNAME APP-NAME PROCID MSGID ...
+    parts = line.split(" ", 6)
+    assert parts[5] == "audit"
 
 
 # --------------- endpoint -------------------------------------------------

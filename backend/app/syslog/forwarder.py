@@ -31,7 +31,7 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import AccountingRecord, SystemSecret, SystemSetting
+from app.db.models import AccountingRecord, AuditLog, SystemSecret, SystemSetting
 from app.db.session import SessionLocal
 
 if TYPE_CHECKING:
@@ -47,8 +47,26 @@ SETTING_HOSTNAME = "syslog.hostname"
 SETTING_TLS_VERIFY = "syslog.tls_verify"
 SETTING_TLS_SERVER_NAME = "syslog.tls_server_name"
 SETTING_LAST_ID = "syslog.last_forwarded_id"
+SETTING_LAST_AUDIT_ID = "syslog.last_audit_id"
 SETTING_LAST_ERROR = "syslog.last_error"
 SETTING_LAST_ERROR_AT = "syslog.last_error_at"
+
+# Audit actions that lift the syslog severity from Info to Warning so
+# SIEMs can route them differently. Anything *.failed plus the lock-out
+# tail-events from auth.* — operators care about failed logins on the
+# SIEM, not "user successfully read the device list".
+_WARNING_ACTIONS = frozenset(
+    {
+        "auth.login_failed",
+        "auth.session_expired",
+        "tacacs.authn_failed",
+        "tacacs.authz_failed",
+        "ldap_sync.test_failed",
+        "ldap_sync.run_failed",
+        "syslog.test_failed",
+    }
+)
+SEVERITY_WARNING = 4
 
 SECRET_TLS_CA_PEM = "syslog.tls_ca_pem"
 SECRET_TLS_CLIENT_CERT_PEM = "syslog.tls_client_cert_pem"
@@ -139,6 +157,48 @@ def format_rfc5424(record: AccountingRecord, cfg: SyslogConfig) -> str:
         msg = f"{record.username}: {msg}"
 
     header = f"<{pri}>1 {timestamp} {cfg.hostname} {cfg.app_name} - acct"
+    return f"{header} {sd} {msg}"
+
+
+def format_rfc5424_audit(row: AuditLog, cfg: SyslogConfig) -> str:
+    """Render one audit-log row as an RFC5424 line (no framing).
+
+    Carries every modeled column in a `[audit@tacacs-web …]` SD block.
+    Failed-/expired-action codes raise severity from Info to Warning
+    so SIEM routing can split them out.
+    """
+    severity = SEVERITY_WARNING if row.action in _WARNING_ACTIONS else SEVERITY_INFO
+    pri = cfg.facility * 8 + severity
+    ts = (
+        row.ts.replace(tzinfo=UTC)
+        if row.ts.tzinfo is None
+        else row.ts.astimezone(UTC)
+    )
+    timestamp = ts.strftime("%Y-%m-%dT%H:%M:%S.") + f"{ts.microsecond // 1000:03d}Z"
+
+    sd_parts: list[str] = [_sd_param("action", row.action)]
+    if row.actor_username_snapshot:
+        sd_parts.append(_sd_param("actor", row.actor_username_snapshot))
+    if row.actor_role:
+        sd_parts.append(_sd_param("role", row.actor_role))
+    if row.auth_method:
+        sd_parts.append(_sd_param("auth_method", row.auth_method))
+    if row.target_type:
+        sd_parts.append(_sd_param("target_type", row.target_type))
+    if row.target_id is not None:
+        sd_parts.append(_sd_param("target_id", str(row.target_id)))
+    if row.client_ip:
+        sd_parts.append(_sd_param("client_ip", row.client_ip))
+    sd = "[audit@tacacs-web " + " ".join(sd_parts) + "]"
+
+    summary = row.summary or row.action
+    msg = (
+        f"{row.actor_username_snapshot}: {summary}"
+        if row.actor_username_snapshot
+        else summary
+    )
+
+    header = f"<{pri}>1 {timestamp} {cfg.hostname} {cfg.app_name} - audit"
     return f"{header} {sd} {msg}"
 
 
@@ -291,37 +351,61 @@ async def _clear_error() -> None:
 
 
 async def _process_one_batch() -> int:
-    """Forward up to BATCH_SIZE new rows. Returns count sent (0 on idle).
+    """Forward up to BATCH_SIZE new rows from each stream.
 
+    Two independent streams ship through the same TCP/TLS connection:
+    - accounting_record (offset key SETTING_LAST_ID)
+    - audit_log         (offset key SETTING_LAST_AUDIT_ID)
+
+    A NAS that doesn't run `aaa accounting` still produces audit_log
+    rows for every authn/authz decision via the MAVIS handler, so
+    the SIEM gets failed-login visibility even with accounting off.
+
+    Returns the total number of lines sent across both streams.
     Returns 0 silently if syslog is disabled.
-    Raises on transport failure so the loop can back off.
+    Raises on transport failure so the loop can back off without
+    advancing either offset.
     """
     async with SessionLocal() as s:
         cfg = await load_config(s)
         if not cfg.enabled or not cfg.host:
             return 0
-        last_id_raw = await _read_setting(s, SETTING_LAST_ID) or "0"
-        last_id = int(last_id_raw) if last_id_raw.isdigit() else 0
-        rows = (
+        last_acct_raw = await _read_setting(s, SETTING_LAST_ID) or "0"
+        last_acct = int(last_acct_raw) if last_acct_raw.isdigit() else 0
+        last_audit_raw = await _read_setting(s, SETTING_LAST_AUDIT_ID) or "0"
+        last_audit = int(last_audit_raw) if last_audit_raw.isdigit() else 0
+        audit_rows = (
+            await s.execute(
+                select(AuditLog)
+                .where(AuditLog.id > last_audit)
+                .order_by(AuditLog.id)
+                .limit(BATCH_SIZE)
+            )
+        ).scalars().all()
+        acct_rows = (
             await s.execute(
                 select(AccountingRecord)
-                .where(AccountingRecord.id > last_id)
+                .where(AccountingRecord.id > last_acct)
                 .order_by(AccountingRecord.id)
                 .limit(BATCH_SIZE)
             )
         ).scalars().all()
 
-    if not rows:
+    if not audit_rows and not acct_rows:
         return 0
 
-    lines = [format_rfc5424(r, cfg) for r in rows]
+    lines: list[str] = []
+    lines.extend(format_rfc5424_audit(r, cfg) for r in audit_rows)
+    lines.extend(format_rfc5424(r, cfg) for r in acct_rows)
     await asyncio.to_thread(_send_lines, cfg, lines)
 
-    new_last_id = rows[-1].id
     async with SessionLocal() as s:
-        await _write_setting(s, SETTING_LAST_ID, str(new_last_id))
+        if audit_rows:
+            await _write_setting(s, SETTING_LAST_AUDIT_ID, str(audit_rows[-1].id))
+        if acct_rows:
+            await _write_setting(s, SETTING_LAST_ID, str(acct_rows[-1].id))
         await s.commit()
-    return len(rows)
+    return len(lines)
 
 
 async def _forwarder_loop() -> None:
