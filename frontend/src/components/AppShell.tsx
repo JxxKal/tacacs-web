@@ -15,6 +15,7 @@ import {
   IconEye,
   IconHistory,
   IconKey,
+  IconBook2,
   IconNetwork,
   IconReceipt,
   IconRocket,
@@ -103,6 +104,12 @@ export function AppShell({ children }: Props) {
             to="/devices"
             label={t("nav.devices")}
             leftSection={<IconServer2 size={16} />}
+          />
+          <NavLink
+            component={RouterNavLink}
+            to="/device-templates"
+            label={t("nav.deviceTemplates")}
+            leftSection={<IconBook2 size={16} />}
           />
           <NavLink
             component={RouterNavLink}

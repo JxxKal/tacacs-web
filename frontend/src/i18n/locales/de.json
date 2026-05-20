@@ -7,6 +7,7 @@
     "deviceGroups": "Gerätegruppen",
     "privilegeProfiles": "Berechtigungsprofile",
     "devices": "Geräte",
+    "deviceTemplates": "Gerätevorlagen",
     "authorizations": "Berechtigungen",
     "effectivePermissions": "Effektive Berechtigungen",
     "accounting": "Accounting",
@@ -309,6 +310,25 @@
     "directBadge": "Direkt",
     "groupBadge": "AD-Gruppe",
     "emptyState": "Noch keine Berechtigungen. Die Effektiv-Ansicht bleibt leer, bis du mindestens eine anlegst."
+  },
+  "deviceTemplates": {
+    "title": "Gerätevorlagen",
+    "subtitle": "Vendor-spezifische TACACS+-Konfigurationen zum Kopieren auf den NAS. Platzhalter `<SHARED_SECRET>` händisch durch das Shared Secret aus der Geräteseite ersetzen — Secrets werden hier nie eingerendert.",
+    "missingHostHint": "Die Web-Base-URL ist noch nicht gesetzt; im Snippet steht `<SERVER_IP>` als Platzhalter. Trag die URL unter Einstellungen → Web-Base-URL ein, damit der Host automatisch eingesetzt wird.",
+    "copy": "In Zwischenablage kopieren",
+    "copied": "Snippet kopiert",
+    "cisco": {
+      "label": "Cisco IOS / IOS-XE",
+      "intro": "Cisco-AAA-Block mit voller Befehls-Autorisation und Accounting für privilege levels 1 und 15. `single-connection` reduziert die Anzahl offener TCP-Sockets in Richtung tac_plus-ng. Quell-Interface auf eine stabile Management-IP setzen (Loopback bevorzugt), damit der NAS-Eintrag in dieser UI mit der echten Quell-IP übereinstimmt."
+    },
+    "comware": {
+      "label": "HPE Comware (H3C)",
+      "intro": "Comware kennt zwei TACACS-Familien: `hwtacacs` (5900/5950/FlexFabric, H3C-Erbe) und `tacacs` (klassische ProCurve). Die Vorlage unten ist für `hwtacacs`. `user-name-format without-domain` schickt den Benutzernamen ohne Domain-Suffix raus — passend zu den Username-Regeln im AD-Sync."
+    },
+    "moxa": {
+      "label": "Moxa (industriell)",
+      "intro": "Moxa-Switches verwenden TACACS+ ausschließlich zur Authentifizierung — keine Command-Authorization auf dem Gerät. Die Rolle ergibt sich aus dem Privilege-Level, das aus dem in der UI verknüpften Privilege-Profile fließt. Shared-Secret-Länge auf vielen Moxa-Firmwares auf 32 ASCII-Zeichen begrenzt."
+    }
   },
   "setup": {
     "title": "Setup-Assistent",

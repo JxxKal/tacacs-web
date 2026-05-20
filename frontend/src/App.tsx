@@ -10,6 +10,7 @@ import { AuthorizationsPage } from "@/pages/AuthorizationsPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { DeviceGroupsPage } from "@/pages/DeviceGroupsPage";
 import { DevicesPage } from "@/pages/DevicesPage";
+import { DeviceTemplatesPage } from "@/pages/DeviceTemplatesPage";
 import { EffectivePermissionsPage } from "@/pages/EffectivePermissionsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PrivilegeProfilesPage } from "@/pages/PrivilegeProfilesPage";
@@ -33,6 +34,10 @@ export function App() {
         element={guarded(<PrivilegeProfilesPage />)}
       />
       <Route path="/devices" element={guarded(<DevicesPage />)} />
+      <Route
+        path="/device-templates"
+        element={guarded(<DeviceTemplatesPage />)}
+      />
       <Route path="/authorizations" element={guarded(<AuthorizationsPage />)} />
       <Route
         path="/effective-permissions"

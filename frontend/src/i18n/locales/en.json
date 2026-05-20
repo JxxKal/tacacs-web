@@ -7,6 +7,7 @@
     "deviceGroups": "Device groups",
     "privilegeProfiles": "Privilege profiles",
     "devices": "Devices",
+    "deviceTemplates": "Device templates",
     "authorizations": "Authorizations",
     "effectivePermissions": "Effective permissions",
     "accounting": "Accounting",
@@ -309,6 +310,25 @@
     "directBadge": "Direct",
     "groupBadge": "AD group",
     "emptyState": "No authorizations yet. The Effective-Permissions view will be empty until you add at least one."
+  },
+  "deviceTemplates": {
+    "title": "Device templates",
+    "subtitle": "Vendor-specific TACACS+ configuration snippets, ready to paste on the NAS. The `<SHARED_SECRET>` placeholder must be replaced manually with the device's shared secret from the Devices page — secrets are never rendered here.",
+    "missingHostHint": "The web base URL is not set yet, so the snippet shows `<SERVER_IP>` as a placeholder. Set it in Settings → Web base URL and this page will fill in the hostname automatically.",
+    "copy": "Copy to clipboard",
+    "copied": "Snippet copied",
+    "cisco": {
+      "label": "Cisco IOS / IOS-XE",
+      "intro": "Cisco AAA block with full command authorization and accounting at privilege levels 1 and 15. `single-connection` keeps TCP socket churn down against tac_plus-ng. Pin the source interface to a stable management IP (loopback preferred) so the device row in this UI matches the NAS's actual source address."
+    },
+    "comware": {
+      "label": "HPE Comware (H3C)",
+      "intro": "Comware exposes two TACACS families: `hwtacacs` (5900/5950/FlexFabric, H3C heritage) and `tacacs` (classic ProCurve). The template below targets `hwtacacs`. `user-name-format without-domain` strips the trailing domain on outbound usernames so they line up with the AD-sync conventions in this UI."
+    },
+    "moxa": {
+      "label": "Moxa (industrial)",
+      "intro": "Moxa switches use TACACS+ for authentication only — there is no on-device command authorization. The user role comes from the privilege level resolved through the privilege-profile linked in this UI. On many Moxa firmwares the shared secret is capped at 32 ASCII characters."
+    }
   },
   "setup": {
     "title": "Setup wizard",

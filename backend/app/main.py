@@ -15,6 +15,7 @@ from app.api.v1 import (
     audit_log,
     authorizations,
     device_groups,
+    device_templates,
     devices,
     effective_permissions,
     principals,
@@ -161,5 +162,11 @@ app.include_router(
     setup.router,
     prefix="/api/v1/setup",
     tags=["setup"],
+    dependencies=_API_V1_DEPS,
+)
+app.include_router(
+    device_templates.router,
+    prefix="/api/v1/device-templates",
+    tags=["device-templates"],
     dependencies=_API_V1_DEPS,
 )
