@@ -21,6 +21,7 @@ from app.api.v1 import (
     privilege_profiles,
     settings_ldap_sync,
     settings_saml,
+    settings_syslog,
     settings_tls,
 )
 from app.api.v1 import (
@@ -31,6 +32,7 @@ from app.core.config import settings
 from app.core.logging import configure_logging
 from app.db.session import engine
 from app.ldap_sync import scheduler as ldap_scheduler
+from app.syslog import forwarder as syslog_forwarder
 
 
 @asynccontextmanager
@@ -38,9 +40,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.log_level)
     ldap_scheduler.start_scheduler()
     acct_ingestor.start_ingestor()
+    syslog_forwarder.start_forwarder()
     try:
         yield
     finally:
+        await syslog_forwarder.stop_forwarder()
         await acct_ingestor.stop_ingestor()
         ldap_scheduler.stop_scheduler()
         await engine.dispose()
@@ -125,6 +129,12 @@ app.include_router(
 app.include_router(
     settings_ldap_sync.router,
     prefix="/api/v1/settings/ldap-sync",
+    tags=["settings"],
+    dependencies=_API_V1_DEPS,
+)
+app.include_router(
+    settings_syslog.router,
+    prefix="/api/v1/settings/syslog",
     tags=["settings"],
     dependencies=_API_V1_DEPS,
 )

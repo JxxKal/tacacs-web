@@ -61,6 +61,11 @@ TACACS_AUTHZ_FAILED = "tacacs.authz_failed"
 # Admin maintenance actions
 NAS_CONFIG_REGENERATED = "nas_config.regenerated"
 
+# Syslog forwarder lifecycle (M6c)
+SYSLOG_CONFIG_UPDATED = "syslog.config_updated"
+SYSLOG_TEST_SUCCEEDED = "syslog.test_succeeded"
+SYSLOG_TEST_FAILED = "syslog.test_failed"
+
 ALL_ACTIONS = frozenset(
     {
         LOCAL_ADMIN_BOOTSTRAPPED,
@@ -100,5 +105,8 @@ ALL_ACTIONS = frozenset(
         TACACS_AUTHZ_SUCCEEDED,
         TACACS_AUTHZ_FAILED,
         NAS_CONFIG_REGENERATED,
+        SYSLOG_CONFIG_UPDATED,
+        SYSLOG_TEST_SUCCEEDED,
+        SYSLOG_TEST_FAILED,
     }
 )

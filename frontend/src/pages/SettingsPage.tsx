@@ -52,6 +52,13 @@ import {
   useWebSettings,
 } from "@/api/settings";
 import {
+  useSyslogStatus,
+  useTestSyslog,
+  useUpdateSyslog,
+  type SyslogStatus,
+  type SyslogUpdate,
+} from "@/api/syslog";
+import {
   useRegenerateTls,
   useTlsStatus,
   useUploadPfx,
@@ -88,7 +95,323 @@ export function SettingsPage() {
       <AdSyncCard />
       <TlsCard />
       <SamlCard />
+      <SyslogCard />
     </Stack>
+  );
+}
+
+
+function SyslogCard() {
+  const { t } = useTranslation();
+  const status = useSyslogStatus();
+  const save = useUpdateSyslog();
+  const test = useTestSyslog();
+
+  if (status.isPending) return <Loader />;
+  if (status.isError || !status.data) {
+    return (
+      <Card withBorder padding="lg">
+        <Alert color="red" icon={<IconAlertCircle size={16} />} title={t("common.error")}>
+          {t("common.errorMessage", { message: errorToMessage(status.error) })}
+        </Alert>
+      </Card>
+    );
+  }
+  const s = status.data;
+  return (
+    <Card withBorder padding="lg">
+      <Stack>
+        <Stack gap={4}>
+          <Title order={4}>{t("settings.syslogTitle")}</Title>
+          <Text c="dimmed" size="sm">
+            {t("settings.syslogDescription")}
+          </Text>
+          {!s.enabled && (
+            <Alert color="yellow" variant="light" mt="xs">
+              {t("settings.syslogUnconfiguredHint")}
+            </Alert>
+          )}
+          {s.enabled && (
+            <Text size="xs" c="dimmed">
+              {t("settings.syslogLastForwarded", { id: s.last_forwarded_id })}
+            </Text>
+          )}
+          {s.last_error && (
+            <Alert color="red" variant="light" mt="xs">
+              {t("settings.syslogLastError", {
+                when: s.last_error_at
+                  ? new Date(s.last_error_at).toLocaleString()
+                  : "?",
+                error: s.last_error,
+              })}
+            </Alert>
+          )}
+        </Stack>
+        <SyslogForm
+          status={s}
+          saving={save.isPending}
+          onSave={(p) =>
+            save.mutate(p, {
+              onSuccess: () =>
+                notifications.show({ color: "green", message: t("settings.saved") }),
+              onError: (err) =>
+                notifications.show({
+                  color: "red",
+                  title: t("common.error"),
+                  message: errorToMessage(err),
+                }),
+            })
+          }
+        />
+        <Group>
+          <Button
+            variant="default"
+            loading={test.isPending}
+            disabled={!s.host}
+            onClick={() =>
+              test.mutate(undefined, {
+                onSuccess: () =>
+                  notifications.show({
+                    color: "green",
+                    message: t("settings.syslogTestSucceeded"),
+                  }),
+                onError: (err) =>
+                  notifications.show({
+                    color: "red",
+                    title: t("common.error"),
+                    message: errorToMessage(err),
+                  }),
+              })
+            }
+          >
+            {t("settings.syslogTest")}
+          </Button>
+        </Group>
+      </Stack>
+    </Card>
+  );
+}
+
+interface SyslogFormValues {
+  enabled: boolean;
+  host: string;
+  port: number;
+  protocol: "tcp" | "tls";
+  facility: number;
+  app_name: string;
+  hostname: string;
+  tls_verify: boolean;
+  tls_server_name: string;
+  tls_ca_pem: string;
+  tls_client_cert_pem: string;
+  tls_client_key_pem: string;
+}
+
+function SyslogForm({
+  status,
+  onSave,
+  saving,
+}: {
+  status: SyslogStatus;
+  onSave: (payload: SyslogUpdate) => void;
+  saving: boolean;
+}) {
+  const { t } = useTranslation();
+  const form = useForm<SyslogFormValues>({
+    initialValues: {
+      enabled: status.enabled,
+      host: status.host ?? "",
+      port: status.port,
+      protocol: status.protocol,
+      facility: status.facility,
+      app_name: status.app_name,
+      hostname: status.hostname,
+      tls_verify: status.tls_verify,
+      tls_server_name: status.tls_server_name ?? "",
+      tls_ca_pem: "",
+      tls_client_cert_pem: "",
+      tls_client_key_pem: "",
+    },
+    validate: {
+      host: (v) => (v.trim() === "" ? t("settings.syslogHost") : null),
+    },
+  });
+
+  useEffect(() => {
+    form.setValues({
+      enabled: status.enabled,
+      host: status.host ?? "",
+      port: status.port,
+      protocol: status.protocol,
+      facility: status.facility,
+      app_name: status.app_name,
+      hostname: status.hostname,
+      tls_verify: status.tls_verify,
+      tls_server_name: status.tls_server_name ?? "",
+      tls_ca_pem: "",
+      tls_client_cert_pem: "",
+      tls_client_key_pem: "",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    status.enabled,
+    status.host,
+    status.port,
+    status.protocol,
+    status.facility,
+    status.app_name,
+    status.hostname,
+    status.tls_verify,
+    status.tls_server_name,
+  ]);
+
+  const submit = form.onSubmit((values) => {
+    onSave({
+      enabled: values.enabled,
+      host: values.host.trim(),
+      port: values.port,
+      protocol: values.protocol,
+      facility: values.facility,
+      app_name: values.app_name.trim(),
+      hostname: values.hostname.trim(),
+      tls_verify: values.tls_verify,
+      tls_server_name: values.tls_server_name.trim() || null,
+      tls_ca_pem: values.tls_ca_pem === "" ? undefined : values.tls_ca_pem,
+      tls_client_cert_pem:
+        values.tls_client_cert_pem === "" ? undefined : values.tls_client_cert_pem,
+      tls_client_key_pem:
+        values.tls_client_key_pem === "" ? undefined : values.tls_client_key_pem,
+    });
+  });
+
+  return (
+    <form onSubmit={submit}>
+      <Stack>
+        <Group>
+          <Group gap={4}>
+            <input
+              id="syslog-enabled"
+              type="checkbox"
+              checked={form.values.enabled}
+              onChange={(e) => form.setFieldValue("enabled", e.currentTarget.checked)}
+            />
+            <label htmlFor="syslog-enabled">{t("settings.syslogEnabled")}</label>
+          </Group>
+        </Group>
+        <Group grow>
+          <TextInput
+            label={t("settings.syslogHost")}
+            placeholder="siem.corp.example"
+            required
+            {...form.getInputProps("host")}
+          />
+          <NumberInput
+            label={t("settings.syslogPort")}
+            min={1}
+            max={65535}
+            required
+            {...form.getInputProps("port")}
+          />
+          <Select
+            label={t("settings.syslogProtocol")}
+            data={[
+              { value: "tls", label: "tls" },
+              { value: "tcp", label: "tcp" },
+            ]}
+            value={form.values.protocol}
+            onChange={(v) =>
+              form.setFieldValue("protocol", (v as "tcp" | "tls") ?? "tls")
+            }
+            w={120}
+          />
+        </Group>
+        <Group grow>
+          <NumberInput
+            label={t("settings.syslogFacility")}
+            min={0}
+            max={23}
+            {...form.getInputProps("facility")}
+          />
+          <TextInput
+            label={t("settings.syslogAppName")}
+            {...form.getInputProps("app_name")}
+          />
+          <TextInput
+            label={t("settings.syslogHostname")}
+            {...form.getInputProps("hostname")}
+          />
+        </Group>
+        {form.values.protocol === "tls" && (
+          <Stack gap="xs">
+            <Group>
+              <Group gap={4}>
+                <input
+                  id="syslog-tls-verify"
+                  type="checkbox"
+                  checked={form.values.tls_verify}
+                  onChange={(e) =>
+                    form.setFieldValue("tls_verify", e.currentTarget.checked)
+                  }
+                />
+                <label htmlFor="syslog-tls-verify">
+                  {t("settings.syslogTlsVerify")}
+                </label>
+              </Group>
+              <TextInput
+                label={t("settings.syslogTlsServerName")}
+                placeholder="siem.corp.example"
+                flex={1}
+                {...form.getInputProps("tls_server_name")}
+              />
+            </Group>
+            <Textarea
+              label={t("settings.syslogTlsCa")}
+              autosize
+              minRows={2}
+              maxRows={6}
+              ff="monospace"
+              description={
+                status.tls_ca_present
+                  ? t("settings.syslogSecretSetHint")
+                  : t("settings.syslogSecretEmptyHint")
+              }
+              {...form.getInputProps("tls_ca_pem")}
+            />
+            <Textarea
+              label={t("settings.syslogTlsClientCert")}
+              autosize
+              minRows={2}
+              maxRows={6}
+              ff="monospace"
+              description={
+                status.tls_client_cert_present
+                  ? t("settings.syslogSecretSetHint")
+                  : t("settings.syslogSecretEmptyHint")
+              }
+              {...form.getInputProps("tls_client_cert_pem")}
+            />
+            <Textarea
+              label={t("settings.syslogTlsClientKey")}
+              autosize
+              minRows={2}
+              maxRows={6}
+              ff="monospace"
+              description={
+                status.tls_client_key_present
+                  ? t("settings.syslogSecretSetHint")
+                  : t("settings.syslogSecretEmptyHint")
+              }
+              {...form.getInputProps("tls_client_key_pem")}
+            />
+          </Stack>
+        )}
+        <Group justify="flex-end">
+          <Button type="submit" loading={saving}>
+            {t("settings.syslogSave")}
+          </Button>
+        </Group>
+      </Stack>
+    </form>
   );
 }
 
