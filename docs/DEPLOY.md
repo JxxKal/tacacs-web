@@ -180,10 +180,12 @@ Edit `docker/.env`:
 
 | Key | Notes |
 |---|---|
-| `BASE_URL` | The HTTPS URL operators will reach. Used for SAML callbacks in M5b and absolute URLs. Example: `https://tacacs.internal.example.com:8443`. |
+| `BASE_URL` | The HTTPS URL operators will reach. Used for SAML callbacks in M5b and absolute URLs. Example: `https://tacacs.internal.example.com:8443`. Must include the same port as `HTTPS_HOST_PORT` (see below) — otherwise the SAML ACS redirect breaks. |
 | `TACACS_SHARED_SECRET` | Generated value, **at least 32 chars**. Every NAS that talks to us uses this one secret until the per-device-secret regen flow lands (see [Current limitations](#current-limitations)). |
 | `TZ` | Affects log timestamps. Use `Europe/Berlin` or your host TZ. |
-| `*_BIND_ADDR` | Default `0.0.0.0`. Restrict to specific host IPs if you do not want TACACS or the UI bound on every interface. |
+| `HTTPS_HOST_PORT` | Host-side port the UI listens on. Default `8443`. Override when another service (UniFi controller, Cockpit, …) already binds `8443`. **Important:** the nginx container always listens on `8443` *inside* — only the host-side mapping changes. Pair the new port with `BASE_URL` so the SP-Metadata + cookie domain stay consistent. Example: `HTTPS_HOST_PORT=8444` plus `BASE_URL=https://tacacs.internal.example.com:8444`. |
+| `TACACS_BIND_ADDR` | Default `0.0.0.0`. Set to a specific host IP if the host has multiple NICs and TACACS should only listen on the OT-facing one. The TACACS+ TCP port itself is the hard-coded `49` — every NAS expects it there, so it is **not** configurable. |
+| `HTTPS_BIND_ADDR` | Default `0.0.0.0`. Same idea for the operator UI: pin to one host IP if you want the UI reachable only on the management interface. |
 
 ### 3.4 Build and start the stack
 
@@ -465,6 +467,8 @@ deployer knows what to expect.
 | `docker compose pull` / build dies with `failed to resolve reference ...: dial tcp: lookup ghcr.io: i/o timeout`. | The Docker **daemon** isn't using the proxy. Shell env doesn't propagate to it — apply the systemd override or `~/.docker/config.json` recipe in [3.0](#30-behind-a-corporate-proxy-skip-if-you-have-direct-internet). |
 | Build inside a stage fails with `certificate verify failed` against pypi / npm / apt mirrors. | Proxy is doing TLS interception. Bake the corporate CA into the build: `cp /etc/ssl/certs/corp-root.pem secrets/corp-ca.pem` and add `COPY secrets/corp-ca.pem /usr/local/share/ca-certificates/corp.crt && update-ca-certificates` near the top of the affected `Dockerfile` (backend / nginx / tac_plus-ng each have their own; the npm one also needs `npm config set cafile /usr/local/share/ca-certificates/corp.crt`). |
 | Cookie not sent on a fresh login — `/me` immediately returns 401. | You are talking HTTP to a backend that emits `Secure` cookies. Always reach the UI via HTTPS through nginx; the bootstrap self-signed cert is enough. |
+| `docker compose up` fails with `Bind for 0.0.0.0:8443 failed: port is already allocated`. | Another service already listens on 8443. Set `HTTPS_HOST_PORT=8444` (or any free port) in `docker/.env` **and** update `BASE_URL` to the same port (`https://…:8444`). Restart with `docker compose -f docker/compose.yml up -d`. The container's internal port stays 8443 either way; only the host-side mapping moves. |
+| SAML login redirects to `https://…:8443/saml/acs` even though you changed the port. | `BASE_URL` still points at 8443. After updating `HTTPS_HOST_PORT`, `BASE_URL` must match (it drives the SP-Metadata + the ACS URL the IdP redirects to). Re-export the SP-Metadata from Settings → SAML and re-import it on the IdP. |
 
 When in doubt, both the integration smoke (`scripts/smoke-tacacs.py`)
 and the audit log (`audit_log` table) tell you whether a request made
