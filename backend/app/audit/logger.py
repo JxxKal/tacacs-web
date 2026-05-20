@@ -5,16 +5,24 @@ Callers go through `append`, never instantiate `AuditLog` directly, so the
 audit. Caller is responsible for committing the session — we don't commit
 here so the audit row lands in the same transaction as the action it
 records.
+
+`append_crud` is a thin wrapper for the most common shape (mutating a
+domain resource as the currently-authenticated UI session); it pulls
+actor / auth fields off the SessionContext so the handlers stay compact.
 """
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.actions import ALL_ACTIONS
 from app.db.models import AuditLog
+
+if TYPE_CHECKING:
+    from app.auth.sessions import SessionContext
 
 
 async def append(
@@ -52,3 +60,28 @@ async def append(
     )
     session.add(row)
     return row
+
+
+async def append_crud(
+    session: AsyncSession,
+    ctx: SessionContext,
+    *,
+    action: str,
+    target_type: str,
+    target_id: int,
+    summary: str | None = None,
+) -> AuditLog:
+    """Audit-row helper for CRUD handlers: actor info pulled from `ctx`."""
+    return await append(
+        session,
+        actor_username_snapshot=ctx.username,
+        actor_role=ctx.role,
+        auth_method=ctx.auth_method,
+        action=action,
+        actor_id=ctx.actor_id,
+        target_type=target_type,
+        target_id=target_id,
+        summary=summary,
+        client_ip=ctx.client_ip,
+        user_agent=ctx.user_agent,
+    )

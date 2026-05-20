@@ -5,6 +5,6 @@ Closed action vocabulary in `actions.py`, append-only insertion in
 code; the retention-pruning job is the only authorised delete path.
 """
 
-from app.audit.logger import append
+from app.audit.logger import append, append_crud
 
-__all__ = ["append"]
+__all__ = ["append", "append_crud"]

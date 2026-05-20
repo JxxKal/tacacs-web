@@ -12,6 +12,15 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit import append_crud
+from app.audit.actions import (
+    DEVICE_CREATED,
+    DEVICE_DELETED,
+    DEVICE_PREVIOUS_RETIRED,
+    DEVICE_SECRET_ROTATED,
+    DEVICE_UPDATED,
+)
+from app.auth.sessions import SessionContext, require_session
 from app.db.models import Device, DeviceGroup
 from app.db.session import get_session
 from app.nas_config import regenerate_nas_config
@@ -123,6 +132,7 @@ async def list_devices(
 @router.post("", response_model=DeviceRead, status_code=status.HTTP_201_CREATED)
 async def create_device(
     payload: DeviceCreate,
+    ctx: Annotated[SessionContext, Depends(require_session)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> DeviceRead:
     await _ensure_device_group_exists(session, payload.device_group_id)
@@ -135,12 +145,19 @@ async def create_device(
     )
     session.add(row)
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError as exc:
         await session.rollback()
         raise HTTPException(
             status.HTTP_409_CONFLICT, detail="name_or_ip_already_exists"
         ) from exc
+    await append_crud(
+        session, ctx,
+        action=DEVICE_CREATED,
+        target_type="device", target_id=row.id,
+        summary=f"{row.name} {row.ip_or_cidr}",
+    )
+    await session.commit()
     await session.refresh(row)
     await _regen(session)
     return DeviceRead.from_row(row)
@@ -161,27 +178,40 @@ async def get_device(
 async def update_device(
     device_id: int,
     payload: DeviceUpdate,
+    ctx: Annotated[SessionContext, Depends(require_session)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> DeviceRead:
     row = await session.get(Device, device_id)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    if payload.device_group_id is not None:
+    changed: list[str] = []
+    if payload.device_group_id is not None and payload.device_group_id != row.device_group_id:
         await _ensure_device_group_exists(session, payload.device_group_id)
+        changed.append(f"dg {row.device_group_id}->{payload.device_group_id}")
         row.device_group_id = payload.device_group_id
-    if payload.name is not None:
+    if payload.name is not None and payload.name != row.name:
+        changed.append(f"name {row.name!r}->{payload.name!r}")
         row.name = payload.name
-    if payload.ip_or_cidr is not None:
+    if payload.ip_or_cidr is not None and payload.ip_or_cidr != row.ip_or_cidr:
+        changed.append(f"ip {row.ip_or_cidr}->{payload.ip_or_cidr}")
         row.ip_or_cidr = payload.ip_or_cidr
     if payload.description is not None:
+        changed.append("description")
         row.description = payload.description
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError as exc:
         await session.rollback()
         raise HTTPException(
             status.HTTP_409_CONFLICT, detail="name_or_ip_already_exists"
         ) from exc
+    await append_crud(
+        session, ctx,
+        action=DEVICE_UPDATED,
+        target_type="device", target_id=row.id,
+        summary=f"{row.name}: {', '.join(changed) or 'no-op'}",
+    )
+    await session.commit()
     await session.refresh(row)
     await _regen(session)
     return DeviceRead.from_row(row)
@@ -190,12 +220,20 @@ async def update_device(
 @router.delete("/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_device(
     device_id: int,
+    ctx: Annotated[SessionContext, Depends(require_session)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> None:
     row = await session.get(Device, device_id)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    name, row_id, ip = row.name, row.id, row.ip_or_cidr
     await session.delete(row)
+    await append_crud(
+        session, ctx,
+        action=DEVICE_DELETED,
+        target_type="device", target_id=row_id,
+        summary=f"{name} {ip}",
+    )
     await session.commit()
     await _regen(session)
 
@@ -204,6 +242,7 @@ async def delete_device(
 async def rotate_secret(
     device_id: int,
     payload: DeviceRotateSecret,
+    ctx: Annotated[SessionContext, Depends(require_session)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> DeviceRead:
     """Shift the current secret into `previous`, set a new `current`.
@@ -220,6 +259,12 @@ async def rotate_secret(
     row.previous_secret_enc = row.current_secret_enc
     row.previous_retired_at = None
     row.current_secret_enc = payload.new_secret
+    await append_crud(
+        session, ctx,
+        action=DEVICE_SECRET_ROTATED,
+        target_type="device", target_id=row.id,
+        summary=row.name,
+    )
     await session.commit()
     await session.refresh(row)
     await _regen(session)
@@ -229,6 +274,7 @@ async def rotate_secret(
 @router.post("/{device_id}/retire-previous", response_model=DeviceRead)
 async def retire_previous_secret(
     device_id: int,
+    ctx: Annotated[SessionContext, Depends(require_session)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> DeviceRead:
     row = await session.get(Device, device_id)
@@ -236,6 +282,12 @@ async def retire_previous_secret(
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     row.previous_secret_enc = None
     row.previous_retired_at = datetime.now(tz=row.updated_at.tzinfo if row.updated_at else None)
+    await append_crud(
+        session, ctx,
+        action=DEVICE_PREVIOUS_RETIRED,
+        target_type="device", target_id=row.id,
+        summary=row.name,
+    )
     await session.commit()
     await session.refresh(row)
     await _regen(session)

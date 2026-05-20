@@ -16,6 +16,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit import append_crud
+from app.audit.actions import AUTHORIZATION_CREATED, AUTHORIZATION_DELETED
+from app.auth.sessions import SessionContext, require_session
 from app.db.models import (
     ADGroup,
     Authorization,
@@ -68,6 +71,7 @@ async def list_authorizations(
 @router.post("", response_model=AuthorizationRead, status_code=status.HTTP_201_CREATED)
 async def create_authorization(
     payload: AuthorizationCreate,
+    ctx: Annotated[SessionContext, Depends(require_session)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> Authorization:
     if payload.principal_user_id is not None:
@@ -91,12 +95,27 @@ async def create_authorization(
     )
     session.add(row)
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError as exc:
         await session.rollback()
         raise HTTPException(
             status.HTTP_409_CONFLICT, detail="authorization_already_exists"
         ) from exc
+    principal_desc = (
+        f"user#{payload.principal_user_id}"
+        if payload.principal_user_id is not None
+        else f"ad_group#{payload.principal_ad_group_id}"
+    )
+    await append_crud(
+        session, ctx,
+        action=AUTHORIZATION_CREATED,
+        target_type="authorization", target_id=row.id,
+        summary=(
+            f"{principal_desc} -> dg#{payload.device_group_id} "
+            f"profile#{payload.privilege_profile_id}"
+        ),
+    )
+    await session.commit()
     await session.refresh(row)
     return row
 
@@ -115,10 +134,27 @@ async def get_authorization(
 @router.delete("/{authz_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_authorization(
     authz_id: int,
+    ctx: Annotated[SessionContext, Depends(require_session)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> None:
     row = await session.get(Authorization, authz_id)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    principal_desc = (
+        f"user#{row.principal_user_id}"
+        if row.principal_user_id is not None
+        else f"ad_group#{row.principal_ad_group_id}"
+    )
+    summary = (
+        f"{principal_desc} -> dg#{row.device_group_id} "
+        f"profile#{row.privilege_profile_id}"
+    )
+    row_id = row.id
     await session.delete(row)
+    await append_crud(
+        session, ctx,
+        action=AUTHORIZATION_DELETED,
+        target_type="authorization", target_id=row_id,
+        summary=summary,
+    )
     await session.commit()

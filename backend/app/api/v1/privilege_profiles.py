@@ -11,6 +11,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit import append_crud
+from app.audit.actions import (
+    PRIVILEGE_PROFILE_CREATED,
+    PRIVILEGE_PROFILE_DELETED,
+    PRIVILEGE_PROFILE_UPDATED,
+)
+from app.auth.sessions import SessionContext, require_session
 from app.db.models import PrivilegeProfile
 from app.db.session import get_session
 
@@ -62,6 +69,7 @@ async def list_privilege_profiles(
 @router.post("", response_model=PrivilegeProfileRead, status_code=status.HTTP_201_CREATED)
 async def create_privilege_profile(
     payload: PrivilegeProfileCreate,
+    ctx: Annotated[SessionContext, Depends(require_session)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> PrivilegeProfile:
     row = PrivilegeProfile(
@@ -74,10 +82,17 @@ async def create_privilege_profile(
     )
     session.add(row)
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError as exc:
         await session.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, detail="name_already_exists") from exc
+    await append_crud(
+        session, ctx,
+        action=PRIVILEGE_PROFILE_CREATED,
+        target_type="privilege_profile", target_id=row.id,
+        summary=f"{row.name} priv-lvl={row.tacacs_priv_lvl}",
+    )
+    await session.commit()
     await session.refresh(row)
     return row
 
@@ -97,28 +112,43 @@ async def get_privilege_profile(
 async def update_privilege_profile(
     profile_id: int,
     payload: PrivilegeProfileUpdate,
+    ctx: Annotated[SessionContext, Depends(require_session)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> PrivilegeProfile:
     row = await session.get(PrivilegeProfile, profile_id)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    if payload.name is not None:
+    changed: list[str] = []
+    if payload.name is not None and payload.name != row.name:
+        changed.append(f"name {row.name!r}->{payload.name!r}")
         row.name = payload.name
-    if payload.tacacs_priv_lvl is not None:
+    if payload.tacacs_priv_lvl is not None and payload.tacacs_priv_lvl != row.tacacs_priv_lvl:
+        changed.append(f"priv-lvl {row.tacacs_priv_lvl}->{payload.tacacs_priv_lvl}")
         row.tacacs_priv_lvl = payload.tacacs_priv_lvl
     if payload.permit_commands_regex is not None:
+        changed.append("permit_commands")
         row.permit_commands_regex = payload.permit_commands_regex
     if payload.deny_commands_regex is not None:
+        changed.append("deny_commands")
         row.deny_commands_regex = payload.deny_commands_regex
     if payload.extra_av_pairs is not None:
+        changed.append("extra_av_pairs")
         row.extra_av_pairs = payload.extra_av_pairs
     if payload.description is not None:
+        changed.append("description")
         row.description = payload.description
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError as exc:
         await session.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, detail="name_already_exists") from exc
+    await append_crud(
+        session, ctx,
+        action=PRIVILEGE_PROFILE_UPDATED,
+        target_type="privilege_profile", target_id=row.id,
+        summary=f"{row.name}: {', '.join(changed) or 'no-op'}",
+    )
+    await session.commit()
     await session.refresh(row)
     return row
 
@@ -126,12 +156,20 @@ async def update_privilege_profile(
 @router.delete("/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_privilege_profile(
     profile_id: int,
+    ctx: Annotated[SessionContext, Depends(require_session)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> None:
     row = await session.get(PrivilegeProfile, profile_id)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    name, row_id = row.name, row.id
     await session.delete(row)
+    await append_crud(
+        session, ctx,
+        action=PRIVILEGE_PROFILE_DELETED,
+        target_type="privilege_profile", target_id=row_id,
+        summary=name,
+    )
     try:
         await session.commit()
     except IntegrityError as exc:

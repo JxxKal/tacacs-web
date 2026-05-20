@@ -11,6 +11,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit import append_crud
+from app.audit.actions import (
+    DEVICE_GROUP_CREATED,
+    DEVICE_GROUP_DELETED,
+    DEVICE_GROUP_UPDATED,
+)
+from app.auth.sessions import SessionContext, require_session
 from app.db.models import DeviceGroup
 from app.db.session import get_session
 
@@ -48,15 +55,23 @@ async def list_device_groups(
 @router.post("", response_model=DeviceGroupRead, status_code=status.HTTP_201_CREATED)
 async def create_device_group(
     payload: DeviceGroupCreate,
+    ctx: Annotated[SessionContext, Depends(require_session)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> DeviceGroup:
     row = DeviceGroup(name=payload.name, description=payload.description)
     session.add(row)
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError as exc:
         await session.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, detail="name_already_exists") from exc
+    await append_crud(
+        session, ctx,
+        action=DEVICE_GROUP_CREATED,
+        target_type="device_group", target_id=row.id,
+        summary=row.name,
+    )
+    await session.commit()
     await session.refresh(row)
     return row
 
@@ -76,20 +91,31 @@ async def get_device_group(
 async def update_device_group(
     device_group_id: int,
     payload: DeviceGroupUpdate,
+    ctx: Annotated[SessionContext, Depends(require_session)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> DeviceGroup:
     row = await session.get(DeviceGroup, device_group_id)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    if payload.name is not None:
+    changed: list[str] = []
+    if payload.name is not None and payload.name != row.name:
+        changed.append(f"name {row.name!r}->{payload.name!r}")
         row.name = payload.name
     if payload.description is not None:
+        changed.append("description")
         row.description = payload.description
     try:
-        await session.commit()
+        await session.flush()
     except IntegrityError as exc:
         await session.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, detail="name_already_exists") from exc
+    await append_crud(
+        session, ctx,
+        action=DEVICE_GROUP_UPDATED,
+        target_type="device_group", target_id=row.id,
+        summary=f"{row.name}: {', '.join(changed) or 'no-op'}",
+    )
+    await session.commit()
     await session.refresh(row)
     return row
 
@@ -97,12 +123,20 @@ async def update_device_group(
 @router.delete("/{device_group_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_device_group(
     device_group_id: int,
+    ctx: Annotated[SessionContext, Depends(require_session)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> None:
     row = await session.get(DeviceGroup, device_group_id)
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    name, row_id = row.name, row.id
     await session.delete(row)
+    await append_crud(
+        session, ctx,
+        action=DEVICE_GROUP_DELETED,
+        target_type="device_group", target_id=row_id,
+        summary=name,
+    )
     try:
         await session.commit()
     except IntegrityError as exc:

@@ -396,3 +396,75 @@ async def test_list_ad_groups_returns_synced_groups(
     assert r.status_code == 200
     body = r.json()
     assert [g["name"] for g in body] == ["admins", "ops"]
+
+
+# ---------------------------------------------------------------------------
+# CRUD audit-log integration
+# ---------------------------------------------------------------------------
+
+
+async def test_crud_writes_audit_rows(
+    client: TestClient, async_db_session: AsyncSession
+) -> None:
+    """Each CRUD mutation lands in audit_log with the expected action code."""
+    from sqlalchemy import select
+
+    from app.audit.actions import (
+        DEVICE_CREATED,
+        DEVICE_GROUP_CREATED,
+        DEVICE_GROUP_DELETED,
+        DEVICE_GROUP_UPDATED,
+        DEVICE_UPDATED,
+        PRIVILEGE_PROFILE_CREATED,
+    )
+    from app.db.models import AuditLog
+
+    dg = client.post(
+        "/api/v1/device-groups", json={"name": "auditdg", "description": "x"}
+    ).json()
+    client.patch(f"/api/v1/device-groups/{dg['id']}", json={"description": "y"})
+    client.post(
+        "/api/v1/privilege-profiles",
+        json={"name": "auditprof", "tacacs_priv_lvl": 7},
+    )
+    dev = client.post(
+        "/api/v1/devices",
+        json={
+            "name": "auditdev",
+            "ip_or_cidr": "10.99.0.1",
+            "device_group_id": dg["id"],
+        },
+    ).json()
+    client.patch(f"/api/v1/devices/{dev['id']}", json={"description": "renamed"})
+
+    rows = (
+        await async_db_session.execute(
+            select(AuditLog).order_by(AuditLog.id)
+        )
+    ).scalars().all()
+    actions = [r.action for r in rows]
+    assert DEVICE_GROUP_CREATED in actions
+    assert DEVICE_GROUP_UPDATED in actions
+    assert PRIVILEGE_PROFILE_CREATED in actions
+    assert DEVICE_CREATED in actions
+    assert DEVICE_UPDATED in actions
+
+    # Delete also lands.
+    client.delete(f"/api/v1/devices/{dev['id']}")
+    client.delete(f"/api/v1/device-groups/{dg['id']}")
+    rows2 = (
+        await async_db_session.execute(
+            select(AuditLog).where(AuditLog.action == DEVICE_GROUP_DELETED)
+        )
+    ).scalars().all()
+    assert len(rows2) == 1
+
+    # Actor info is attached.
+    assert rows[0].actor_username_snapshot == "test-admin"
+    assert rows[0].auth_method == "local"
+    assert rows[0].target_type in {
+        "device_group",
+        "privilege_profile",
+        "device",
+    }
+    assert rows[0].target_id is not None

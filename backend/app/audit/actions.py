@@ -58,6 +58,9 @@ TACACS_AUTHN_FAILED = "tacacs.authn_failed"
 TACACS_AUTHZ_SUCCEEDED = "tacacs.authz_succeeded"
 TACACS_AUTHZ_FAILED = "tacacs.authz_failed"
 
+# Admin maintenance actions
+NAS_CONFIG_REGENERATED = "nas_config.regenerated"
+
 ALL_ACTIONS = frozenset(
     {
         LOCAL_ADMIN_BOOTSTRAPPED,
@@ -96,5 +99,6 @@ ALL_ACTIONS = frozenset(
         TACACS_AUTHN_FAILED,
         TACACS_AUTHZ_SUCCEEDED,
         TACACS_AUTHZ_FAILED,
+        NAS_CONFIG_REGENERATED,
     }
 )
