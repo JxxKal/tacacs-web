@@ -111,29 +111,30 @@ def _paged_search(
     attrs: list[str],
     page_size: int,
 ) -> Iterable[_Entry]:
-    """Iterate every result of a paged subtree search as a `response`-style dict."""
-    cookie = None
-    while True:
-        conn.search(
-            search_base=base_dn,
-            search_filter=filter_,
-            search_scope=SUBTREE,
-            attributes=attrs,
-            paged_size=page_size,
-            paged_cookie=cookie,
+    """Iterate every result of a paged subtree search.
+
+    Delegates the cookie / referral / size-limit handling to ldap3's
+    own `paged_search_generator` rather than re-implementing it. The
+    generator yields response dicts that may include `searchResRef`
+    entries; we keep only the `searchResEntry` ones so callers see a
+    homogeneous stream.
+    """
+    for entry in conn.extend.standard.paged_search(
+        search_base=base_dn,
+        search_filter=filter_,
+        search_scope=SUBTREE,
+        attributes=attrs,
+        paged_size=page_size,
+        paged_criticality=True,
+        generator=True,
+    ):
+        if entry.get("type") != "searchResEntry":
+            continue
+        yield _Entry(
+            dn=entry["dn"],
+            attributes=entry.get("attributes", {}) or {},
+            raw_attributes=entry.get("raw_attributes", {}) or {},
         )
-        for entry in conn.response:
-            if entry.get("type") != "searchResEntry":
-                continue
-            yield _Entry(
-                dn=entry["dn"],
-                attributes=entry.get("attributes", {}) or {},
-                raw_attributes=entry.get("raw_attributes", {}) or {},
-            )
-        ctrl = conn.result.get("controls", {}) if conn.result else {}
-        cookie = ctrl.get(PAGED_RESULTS_OID, {}).get("value", {}).get("cookie")
-        if not cookie:
-            return
 
 
 def _str(entry: _Entry, name: str) -> str | None:
