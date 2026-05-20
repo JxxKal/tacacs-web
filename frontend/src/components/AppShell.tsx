@@ -15,6 +15,7 @@ import {
   IconHistory,
   IconKey,
   IconNetwork,
+  IconReceipt,
   IconServer2,
   IconSettings,
   IconShieldLock,
@@ -109,10 +110,16 @@ export function AppShell({ children }: Props) {
           />
           <NavLink
             component={RouterNavLink}
+            to="/accounting"
+            label={t("nav.accounting")}
+            leftSection={<IconReceipt size={16} />}
+            mt="md"
+          />
+          <NavLink
+            component={RouterNavLink}
             to="/audit-log"
             label={t("nav.auditLog")}
             leftSection={<IconHistory size={16} />}
-            mt="md"
           />
           <NavLink
             component={RouterNavLink}

@@ -10,6 +10,7 @@ from fastapi import Depends, FastAPI
 from app.accounting import ingestor as acct_ingestor
 from app.api import auth_local, health, internal_mavis, saml_routes
 from app.api.v1 import (
+    accounting,
     admin,
     audit_log,
     authorizations,
@@ -137,5 +138,11 @@ app.include_router(
     audit_log.router,
     prefix="/api/v1/audit-log",
     tags=["audit-log"],
+    dependencies=_API_V1_DEPS,
+)
+app.include_router(
+    accounting.router,
+    prefix="/api/v1/accounting",
+    tags=["accounting"],
     dependencies=_API_V1_DEPS,
 )
