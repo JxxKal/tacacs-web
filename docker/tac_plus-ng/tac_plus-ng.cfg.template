@@ -35,7 +35,7 @@ id = tac_plus-ng {
     # whichever default tac_plus-ng's source happens to use.
     log acctlog {
         destination = /var/log/tac_plus-ng/accounting.log
-        accounting format = "${time}\t${nas}\t${user}\t${port}\t${nac}\t${task_id}\t${accttype}\t${args}"
+        accounting format = "${timestamp}\t${nas}\t${user}\t${port}\t${nac}\t${task_id}\t${accttype}\t${args}"
     }
     accounting log = acctlog
 
