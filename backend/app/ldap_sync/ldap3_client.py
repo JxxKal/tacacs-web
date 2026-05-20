@@ -40,6 +40,9 @@ DEFAULT_USER_FILTER = (
     "(&(objectCategory=person)(objectClass=user)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))"
 )
 TRANSITIVE_MEMBER_RULE = "1.2.840.113556.1.4.1941"
+# RFC 2696 Simple Paged Results — the response control OID we read the
+# continuation cookie out of.
+PAGED_RESULTS_OID = "1.2.840.113556.1.4.319"
 
 
 def fetch_users(
@@ -128,7 +131,7 @@ def _paged_search(
                 raw_attributes=entry.get("raw_attributes", {}) or {},
             )
         ctrl = conn.result.get("controls", {}) if conn.result else {}
-        cookie = ctrl.get("1.2.840.113551.1.5.6", {}).get("value", {}).get("cookie")
+        cookie = ctrl.get(PAGED_RESULTS_OID, {}).get("value", {}).get("cookie")
         if not cookie:
             return
 

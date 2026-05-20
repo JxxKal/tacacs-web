@@ -39,7 +39,11 @@ server {
         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_http_version 1.1;
-        proxy_read_timeout 30s;
+        # Full AD syncs can run for minutes on large OUs because each user
+        # triggers one transitive-group search; keep the upstream timeout
+        # generous enough that the operator's "Run now" request still
+        # gets the summary back instead of a 504.
+        proxy_read_timeout 300s;
     }
 
     # Vite-built SPA, served as static files. Any path that doesn't match
