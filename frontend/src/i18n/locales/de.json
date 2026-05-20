@@ -12,6 +12,7 @@
     "accounting": "Accounting",
     "auditLog": "Audit-Log",
     "settings": "Einstellungen",
+    "setup": "Setup-Assistent",
     "logout": "Abmelden"
   },
   "common": {
@@ -308,5 +309,70 @@
     "directBadge": "Direkt",
     "groupBadge": "AD-Gruppe",
     "emptyState": "Noch keine Berechtigungen. Die Effektiv-Ansicht bleibt leer, bis du mindestens eine anlegst."
+  },
+  "setup": {
+    "title": "Setup-Assistent",
+    "intro": "Erstkonfiguration nach Installation. Pflichtschritte stehen oben; optionale Schritte können später nachgezogen werden. Der Wizard ist nur eine Checkliste — er ersetzt nicht die jeweiligen Einstellungsseiten.",
+    "bannerTitle": "Setup-Assistent ist offen",
+    "bannerBody": "Erstkonfiguration noch nicht abgeschlossen — {{done}}/{{required}} Pflichtschritte erledigt.",
+    "bannerCta": "Zum Wizard",
+    "stepRequired": "Pflicht",
+    "stepOptional": "Optional",
+    "stepDone": "Erledigt",
+    "stepOpen": "Offen",
+    "open": "Öffnen",
+    "completeButton": "Wizard abschließen",
+    "completed": "Wizard abgeschlossen von {{user}}.",
+    "completedNoUser": "Wizard ist abgeschlossen.",
+    "reopen": "Wizard erneut öffnen",
+    "reopened": "Wizard ist wieder offen.",
+    "completeUnavailableHint": "Erst alle Pflichtschritte erledigen.",
+    "completeSucceeded": "Setup abgeschlossen.",
+    "steps": {
+      "local_admin": {
+        "title": "Lokaler Break-Glass-Admin",
+        "hint": "Wird ausschließlich per CLI `tacacs-web bootstrap-admin` auf dem Host angelegt. Argon2id-Hash, keine Web-Verwaltung. ADR-0003."
+      },
+      "web_base_url": {
+        "title": "Web-Base-URL",
+        "hint": "Die kanonische https://-URL, unter der Operatoren das UI erreichen. Wird u.a. von der SAML-SP-Metadata referenziert."
+      },
+      "tls": {
+        "title": "TLS-Zertifikat",
+        "hint": "Server-Zertifikat für nginx. Selfsigned beim ersten Start; per Settings durch echtes Zertifikat (PEM oder Windows-AD-CS-PFX) ersetzbar."
+      },
+      "ldap_url": {
+        "title": "Active-Directory-Endpoint",
+        "hint": "LDAPS-URL, die der MAVIS-Live-Bind und der AD-Sync-Worker nutzen. ADR-0002."
+      },
+      "ldap_sync": {
+        "title": "AD-Sync",
+        "hint": "Service-Account-Bind, Base-DNs und Cadence. Nur erforderlich, wenn Berechtigungen an AD-Gruppen statt direkt an User gebunden werden sollen."
+      },
+      "saml": {
+        "title": "SAML-Login",
+        "hint": "FortiAuthenticator (oder ein anderer SAML-2.0-IdP) für Admin-Login. Bis dahin meldet sich der Operator nur per Break-Glass-Admin an. ADR-0003."
+      },
+      "first_device_group": {
+        "title": "Erste Gerätegruppe",
+        "hint": "Flache Gruppen, ein Gerät gehört zu genau einer Gruppe (ADR-0005). Mindestens eine ist nötig, bevor du Geräte anlegen kannst."
+      },
+      "first_privilege_profile": {
+        "title": "Erstes Berechtigungsprofil",
+        "hint": "TACACS-priv-lvl + permit/deny-Listen für Befehle. Wird in den Berechtigungen mit Principals + Gerätegruppen verknüpft."
+      },
+      "first_device": {
+        "title": "Erstes Gerät",
+        "hint": "Optional für den ersten Wizard-Abschluss — kann nach AD-Verbindung getestet werden, sobald du den ersten NAS anbindest."
+      },
+      "first_authorization": {
+        "title": "Erste Berechtigung",
+        "hint": "Verknüpft einen Principal (User oder AD-Gruppe) mit (Gerätegruppe, Berechtigungsprofil). Permissive Konfliktauflösung gem. ADR-0006."
+      },
+      "syslog_forwarder": {
+        "title": "Syslog-Forwarder",
+        "hint": "Leitet Accounting-Datensätze an ein externes SIEM via RFC5424/TCP oder TLS weiter. Optional und jederzeit nachrüstbar."
+      }
+    }
   }
 }

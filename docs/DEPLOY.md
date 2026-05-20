@@ -8,9 +8,10 @@ operational consequences.
 > **Status note.** v1 is still in development. The current build covers the
 > TACACS+ daemon, MAVIS authn + authz (with live LDAPS bind), the four CRUD
 > resources (DeviceGroups, PrivilegeProfiles, Devices, Authorizations), the
-> local break-glass admin login, and an append-only audit log. Setup wizard,
-> Accounting forwarder and the first-boot Setup-Wizard are still on the
-> M6 / M7 plan — see [Current limitations](#current-limitations).
+> local break-glass admin login, an append-only audit log, the accounting
+> ingestor + RFC5424 syslog forwarder (M6) and the in-UI first-boot Setup
+> Wizard (M7). Remaining gaps are listed under
+> [Current limitations](#current-limitations).
 
 ---
 
@@ -130,34 +131,57 @@ docker compose -f docker/compose.yml exec -it backend tacacs-web bootstrap-admin
 ### 3.6 Accept the self-signed cert and log in
 
 Browse to your `BASE_URL`. The first start generates a self-signed cert
-(RSA 2048, 825 days) into the `tls-state` volume; replace it with a
-trusted cert by mounting your own files into `/etc/nginx/tls/server.crt`
-and `server.key` and restarting `nginx`. (UI-driven cert upload lands in
-M7.)
+(RSA 2048, 825 days) into the `tls-state` volume. From M7 onwards a real
+certificate can be uploaded straight through the UI:
+**Settings → TLS certificate** accepts a PEM cert + key pair or a
+Windows AD-CS PFX (with password). The change is hot — nginx picks the
+new file up on its next request without a container restart.
 
 Log in at `/login` with the admin credentials. You should land on the
 dashboard and see the Devices / Privilege Profiles / Authorizations / etc.
 in the sidebar.
 
+### 3.7 Walk the Setup Wizard (M7)
+
+Until the wizard is marked complete, every page in the UI shows a yellow
+banner pointing at `/setup`. The wizard is a checklist — each row deep-
+links to the relevant Settings card or CRUD page. Required rows must be
+green before the "Mark wizard as complete" button enables; optional rows
+(AD-sync, SAML, first device, syslog forwarder, …) can be skipped and
+filled in later.
+
+| Step | Where it lives |
+|---|---|
+| Local break-glass admin | host CLI (`tacacs-web bootstrap-admin`) |
+| Web base URL | Settings → Web base URL |
+| TLS certificate | Settings → TLS certificate |
+| Active Directory endpoint | Settings → Active Directory / LDAPS |
+| AD sync (optional) | Settings → Active Directory Sync |
+| SAML login (optional) | Settings → SAML 2.0 admin login |
+| First device group | Device groups page |
+| First privilege profile | Privilege profiles page |
+| First device (optional) | Devices page |
+| First authorization (optional) | Authorizations page |
+| Syslog forwarder (optional) | Settings → Syslog forwarder |
+
+The wizard can be re-opened from `/setup` at any time. Both the
+completion and the re-open events land in the audit log under
+`setup.wizard_completed` / `setup.wizard_reopened`.
+
 ---
 
 ## 4. Configure AD live-bind (M3 path)
 
-The MAVIS AUTH handler binds against a configurable LDAP endpoint. Until
-the setup wizard lands (M7) you set this directly in `system_setting`:
-
-```sh
-docker compose -f docker/compose.yml exec -T db psql -U tacacs tacacs <<'SQL'
-INSERT INTO system_setting (key, value, updated_at)
-VALUES ('ldap.url', 'ldaps://dc01.corp.example:636', now())
-ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
-SQL
-```
+The MAVIS AUTH handler binds against a configurable LDAP endpoint. Set
+this in the UI under **Settings → Active Directory / LDAPS** (URL
+field). The Setup Wizard (`/setup`) lists it as a required step.
 
 The handler infers TLS from the scheme (`ldaps://` -> TLS on). It does
 not currently consume `ldap.bind_dn` / `ldap.bind_password` at AUTH time
-— those exist for the AD-sync worker (M3b/c), which is not yet
-scheduled (see limitations below).
+— those exist for the AD-sync worker (M3b/c), configured under
+**Settings → Active Directory Sync** (bind DN, password, base DNs,
+cadence). The worker is opt-in: leave "Run periodically" off if you
+only want manual one-shot syncs.
 
 > **DNS gotcha.** The backend container resolves AD via Docker's embedded
 > DNS, which proxies to the host. If `dc01.corp.example` is only
@@ -317,16 +341,15 @@ docker compose -f docker/compose.yml exec -T db \
 These are real gaps you will hit. Tracking them here so an early
 deployer knows what to expect.
 
-- **No setup wizard.** LDAP URL and similar settings are now editable in
-  the Settings UI (LDAPS endpoint, public hostname, AD-sync config, TLS
-  cert upload, SAML SP). A first-boot wizard that walks an operator
-  through the four-step setup is M7.
-- **No accounting persistence or forwarding.** `aaa accounting` rows
-  from the daemon are not yet ingested into the DB or forwarded to
-  external syslog. That's M6.
-- **No UI-driven cert upload.** Replace the self-signed cert by
-  mounting your own files into the `tls-state` volume. M7 adds the
-  upload + reload flow.
+- **No HA / clustering.** Single-node Compose. Explicit non-goal for v1
+  (ADR-0001 / ADR-0010). A v2 cluster story is plausible but blocked on
+  a state-replication design for the encrypted `system_secret` table.
+- **No SAML SLO.** Logging out of the IdP does not invalidate the local
+  session cookie. Use the local "Log out" link and the 8h sliding cap.
+  ADR-0003 documents the rationale.
+- **Time-bound authorizations are out of scope** for v1 — every
+  authorization is permanent until deleted. The audit log records the
+  delete so you can reconstruct the timeline.
 
 ---
 

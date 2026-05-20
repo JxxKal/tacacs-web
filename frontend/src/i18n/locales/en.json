@@ -12,6 +12,7 @@
     "accounting": "Accounting",
     "auditLog": "Audit log",
     "settings": "Settings",
+    "setup": "Setup wizard",
     "logout": "Log out"
   },
   "common": {
@@ -308,5 +309,70 @@
     "directBadge": "Direct",
     "groupBadge": "AD group",
     "emptyState": "No authorizations yet. The Effective-Permissions view will be empty until you add at least one."
+  },
+  "setup": {
+    "title": "Setup wizard",
+    "intro": "First-boot configuration checklist. Required steps appear first; optional steps can be filled in later. The wizard is a checklist — it does not replace the individual settings pages.",
+    "bannerTitle": "Setup wizard open",
+    "bannerBody": "First-boot configuration not finished — {{done}}/{{required}} required steps done.",
+    "bannerCta": "Open wizard",
+    "stepRequired": "Required",
+    "stepOptional": "Optional",
+    "stepDone": "Done",
+    "stepOpen": "Open",
+    "open": "Open",
+    "completeButton": "Mark wizard as complete",
+    "completed": "Wizard completed by {{user}}.",
+    "completedNoUser": "Wizard is complete.",
+    "reopen": "Re-open wizard",
+    "reopened": "Wizard re-opened.",
+    "completeUnavailableHint": "Finish every required step first.",
+    "completeSucceeded": "Setup marked complete.",
+    "steps": {
+      "local_admin": {
+        "title": "Local break-glass admin",
+        "hint": "Created exclusively via the host CLI `tacacs-web bootstrap-admin`. Argon2id hash, never editable from the web UI. ADR-0003."
+      },
+      "web_base_url": {
+        "title": "Web base URL",
+        "hint": "The canonical https:// URL operators reach the UI on. Referenced by the SAML SP metadata among other things."
+      },
+      "tls": {
+        "title": "TLS certificate",
+        "hint": "Server certificate for nginx. Self-signed on first boot; replace with a real cert (PEM or Windows AD-CS PFX) via Settings."
+      },
+      "ldap_url": {
+        "title": "Active Directory endpoint",
+        "hint": "LDAPS URL used by the MAVIS live-bind and the AD-sync worker. ADR-0002."
+      },
+      "ldap_sync": {
+        "title": "AD sync",
+        "hint": "Service-account bind, base DNs and cadence. Only required if you bind authorizations to AD groups rather than directly to users."
+      },
+      "saml": {
+        "title": "SAML login",
+        "hint": "FortiAuthenticator (or another SAML 2.0 IdP) for admin login. Until that is set, operators sign in via the break-glass admin only. ADR-0003."
+      },
+      "first_device_group": {
+        "title": "First device group",
+        "hint": "Flat groups; each device belongs to exactly one group (ADR-0005). At least one group is required before you can create devices."
+      },
+      "first_privilege_profile": {
+        "title": "First privilege profile",
+        "hint": "TACACS priv-lvl + permit/deny command regex lists. Referenced in Authorizations alongside a principal + device group."
+      },
+      "first_device": {
+        "title": "First device",
+        "hint": "Optional for the initial wizard pass — add once you wire the first NAS to verify the AUTH path end-to-end."
+      },
+      "first_authorization": {
+        "title": "First authorization",
+        "hint": "Links a principal (user or AD group) to (device group, privilege profile). Permissive conflict resolution per ADR-0006."
+      },
+      "syslog_forwarder": {
+        "title": "Syslog forwarder",
+        "hint": "Forwards accounting records to an external SIEM via RFC5424/TCP or TLS. Optional and addable at any time."
+      }
+    }
   }
 }

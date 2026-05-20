@@ -23,6 +23,7 @@ from app.api.v1 import (
     settings_saml,
     settings_syslog,
     settings_tls,
+    setup,
 )
 from app.api.v1 import (
     settings as v1_settings,
@@ -154,5 +155,11 @@ app.include_router(
     accounting.router,
     prefix="/api/v1/accounting",
     tags=["accounting"],
+    dependencies=_API_V1_DEPS,
+)
+app.include_router(
+    setup.router,
+    prefix="/api/v1/setup",
+    tags=["setup"],
     dependencies=_API_V1_DEPS,
 )

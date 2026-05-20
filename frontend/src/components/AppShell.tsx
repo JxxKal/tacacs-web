@@ -1,7 +1,8 @@
 import {
+  Alert,
   AppShell as MantineAppShell,
-  Burger,
   Button,
+  Burger,
   Group,
   NavLink,
   Stack,
@@ -16,15 +17,17 @@ import {
   IconKey,
   IconNetwork,
   IconReceipt,
+  IconRocket,
   IconServer2,
   IconSettings,
   IconShieldLock,
 } from "@tabler/icons-react";
 import { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { NavLink as RouterNavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink as RouterNavLink, useNavigate } from "react-router-dom";
 
 import { useLogout, useMe } from "@/api/auth";
+import { useSetupStatus } from "@/api/setup";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 interface Props {
@@ -37,6 +40,11 @@ export function AppShell({ children }: Props) {
   const me = useMe();
   const logout = useLogout();
   const navigate = useNavigate();
+  const setup = useSetupStatus();
+  const setupSteps = setup.data?.steps ?? [];
+  const requiredTotal = setupSteps.filter((s) => s.required).length;
+  const requiredDone = setupSteps.filter((s) => s.required && s.done).length;
+  const showSetupBanner = Boolean(setup.data && !setup.data.completed);
 
   const handleLogout = () => {
     logout.mutate(undefined, {
@@ -127,9 +135,38 @@ export function AppShell({ children }: Props) {
             label={t("nav.settings")}
             leftSection={<IconSettings size={16} />}
           />
+          <NavLink
+            component={RouterNavLink}
+            to="/setup"
+            label={t("nav.setup")}
+            leftSection={<IconRocket size={16} />}
+          />
         </Stack>
       </MantineAppShell.Navbar>
-      <MantineAppShell.Main>{children}</MantineAppShell.Main>
+      <MantineAppShell.Main>
+        {showSetupBanner && (
+          <Alert
+            color="yellow"
+            variant="light"
+            title={t("setup.bannerTitle")}
+            mb="md"
+            withCloseButton={false}
+          >
+            <Group justify="space-between" wrap="nowrap">
+              <Text size="sm">
+                {t("setup.bannerBody", {
+                  done: requiredDone,
+                  required: requiredTotal,
+                })}
+              </Text>
+              <Button component={Link} to="/setup" size="xs" variant="filled">
+                {t("setup.bannerCta")}
+              </Button>
+            </Group>
+          </Alert>
+        )}
+        {children}
+      </MantineAppShell.Main>
     </MantineAppShell>
   );
 }

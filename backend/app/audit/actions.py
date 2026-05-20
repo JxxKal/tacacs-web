@@ -66,6 +66,10 @@ SYSLOG_CONFIG_UPDATED = "syslog.config_updated"
 SYSLOG_TEST_SUCCEEDED = "syslog.test_succeeded"
 SYSLOG_TEST_FAILED = "syslog.test_failed"
 
+# First-boot setup wizard (M7)
+SETUP_WIZARD_COMPLETED = "setup.wizard_completed"
+SETUP_WIZARD_REOPENED = "setup.wizard_reopened"
+
 ALL_ACTIONS = frozenset(
     {
         LOCAL_ADMIN_BOOTSTRAPPED,
@@ -108,5 +112,7 @@ ALL_ACTIONS = frozenset(
         SYSLOG_CONFIG_UPDATED,
         SYSLOG_TEST_SUCCEEDED,
         SYSLOG_TEST_FAILED,
+        SETUP_WIZARD_COMPLETED,
+        SETUP_WIZARD_REOPENED,
     }
 )

@@ -14,6 +14,7 @@ import { EffectivePermissionsPage } from "@/pages/EffectivePermissionsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PrivilegeProfilesPage } from "@/pages/PrivilegeProfilesPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { SetupWizardPage } from "@/pages/SetupWizardPage";
 
 const guarded = (page: ReactNode) => (
   <RequireSession>
@@ -40,6 +41,7 @@ export function App() {
       <Route path="/accounting" element={guarded(<AccountingPage />)} />
       <Route path="/audit-log" element={guarded(<AuditLogPage />)} />
       <Route path="/settings" element={guarded(<SettingsPage />)} />
+      <Route path="/setup" element={guarded(<SetupWizardPage />)} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
