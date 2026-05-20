@@ -7,7 +7,7 @@ const StatusSchema = z.object({
   enabled: z.boolean(),
   host: z.string().nullable(),
   port: z.number(),
-  protocol: z.enum(["tcp", "tls"]),
+  protocol: z.enum(["udp", "tcp", "tls"]),
   facility: z.number(),
   app_name: z.string(),
   hostname: z.string(),
@@ -28,7 +28,7 @@ export interface SyslogUpdate {
   enabled: boolean;
   host: string;
   port: number;
-  protocol: "tcp" | "tls";
+  protocol: "udp" | "tcp" | "tls";
   facility: number;
   app_name: string;
   hostname: string;

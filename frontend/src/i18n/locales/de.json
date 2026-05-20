@@ -251,7 +251,7 @@
     "samlKeypairRegenerated": "Neues SP-Schlüsselpaar erzeugt",
     "samlSignInButton": "Anmelden via SAML",
     "syslogTitle": "Syslog-Forwarder",
-    "syslogDescription": "Sendet Accounting-Datensätze UND Audit-Events (TACACS-Login-Erfolge/-Fehler, Web-UI-Logins, CRUD-Aktionen) an ein externes SIEM über TCP oder TLS im RFC5424+RFC6587-Format. `*.failed`-Events erhalten Severity Warning, alle anderen Info. ADR-0008.",
+    "syslogDescription": "Sendet Accounting-Datensätze UND Audit-Events (TACACS-Login-Erfolge/-Fehler, Web-UI-Logins, CRUD-Aktionen) an ein externes SIEM. Protokolle: UDP (RFC5426, ein Datagramm pro Event, Default-Port 514) — TCP/TLS (RFC6587-octet-counted, Default 6514 für TLS, 514 für TCP). `*.failed`-Events erhalten Severity Warning, alle anderen Info. ADR-0008.",
     "syslogUnconfiguredHint": "Nicht aktiv. Unten aktivieren und Host+Port setzen; der Worker übernimmt die Änderungen beim nächsten Poll-Zyklus.",
     "syslogEnabled": "Aktiv",
     "syslogHost": "Host",

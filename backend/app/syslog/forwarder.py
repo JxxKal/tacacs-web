@@ -92,7 +92,7 @@ class SyslogConfig:
     enabled: bool
     host: str
     port: int
-    protocol: str  # "tcp" | "tls"
+    protocol: str  # "udp" | "tcp" | "tls"
     facility: int
     app_name: str
     hostname: str
@@ -242,7 +242,12 @@ async def load_config(session: AsyncSession) -> SyslogConfig:
     except ValueError:
         port = 6514
     protocol_raw = (await _read_setting(session, SETTING_PROTOCOL) or "tls").lower()
-    protocol = "tls" if protocol_raw == "tls" else "tcp"
+    if protocol_raw == "tls":
+        protocol = "tls"
+    elif protocol_raw == "udp":
+        protocol = "udp"
+    else:
+        protocol = "tcp"
     fac_raw = await _read_setting(session, SETTING_FACILITY) or str(DEFAULT_FACILITY)
     try:
         facility = max(0, min(23, int(fac_raw)))
@@ -298,13 +303,22 @@ def _build_ssl_context(cfg: SyslogConfig) -> ssl.SSLContext:
 
 
 def _send_lines(cfg: SyslogConfig, lines: list[str]) -> None:
-    """Send `lines` (already RFC5424-formatted) via RFC6587 octet-counted framing.
+    """Send `lines` (already RFC5424-formatted).
+
+    Transport depends on `cfg.protocol`:
+    - `tcp` / `tls`: one stream per batch, RFC6587 octet-counted framing.
+    - `udp`: one datagram per line, no framing (RFC5426). Fire-and-forget;
+      a `socket.sendto` that fails locally still raises so the loop
+      can back off, but the wire itself has no ACK.
 
     Raises on any transport-layer error. Synchronous; the async caller
     runs this via `asyncio.to_thread`.
     """
     if not cfg.host:
         raise RuntimeError("syslog.host is not configured")
+    if cfg.protocol == "udp":
+        _send_lines_udp(cfg, lines)
+        return
     sock = socket.create_connection((cfg.host, cfg.port), timeout=SOCKET_TIMEOUT)
     try:
         if cfg.protocol == "tls":
@@ -316,6 +330,30 @@ def _send_lines(cfg: SyslogConfig, lines: list[str]) -> None:
             payload = line.encode("utf-8")
             frame = f"{len(payload)} ".encode("ascii") + payload
             sock.sendall(frame)
+    finally:
+        with contextlib.suppress(OSError):
+            sock.close()
+
+
+# Conservative UDP datagram cap. RFC5426 §3.2 recommends 480 bytes for
+# IPv4 and 1180 for IPv6 to avoid fragmentation; most real-world
+# collectors accept up to ~8 KiB. Splitting a single line is not allowed
+# by RFC5424 (each datagram == one whole message), so we just truncate
+# anything over this limit and tag it. Operators care more about every
+# event arriving in some form than about losing a 12 KiB cmd argument.
+UDP_MAX_BYTES = 8000
+
+
+def _send_lines_udp(cfg: SyslogConfig, lines: list[str]) -> None:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(SOCKET_TIMEOUT)
+    try:
+        addr = (cfg.host, cfg.port)
+        for line in lines:
+            payload = line.encode("utf-8")
+            if len(payload) > UDP_MAX_BYTES:
+                payload = payload[: UDP_MAX_BYTES - 14] + b"...[truncated]"
+            sock.sendto(payload, addr)
     finally:
         with contextlib.suppress(OSError):
             sock.close()

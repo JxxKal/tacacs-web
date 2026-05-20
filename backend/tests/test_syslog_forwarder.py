@@ -173,6 +173,68 @@ def test_audit_format_msgid_is_audit() -> None:
     assert parts[5] == "audit"
 
 
+# --------------- transport -----------------------------------------------
+
+
+def test_udp_send_emits_one_datagram_per_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    """UDP path must not octet-frame; each line goes as its own datagram."""
+    from app.syslog import forwarder as fwd
+
+    sent: list[tuple[bytes, tuple[str, int]]] = []
+
+    class _FakeUdpSocket:
+        def settimeout(self, _t: float) -> None:
+            pass
+
+        def sendto(self, data: bytes, addr: tuple[str, int]) -> None:
+            sent.append((data, addr))
+
+        def close(self) -> None:
+            pass
+
+    def _fake_socket(family: int, type_: int) -> _FakeUdpSocket:
+        assert family == fwd.socket.AF_INET
+        assert type_ == fwd.socket.SOCK_DGRAM
+        return _FakeUdpSocket()
+
+    monkeypatch.setattr(fwd.socket, "socket", _fake_socket)
+
+    cfg = _cfg(protocol="udp", port=514)
+    lines = ["<134>1 - - - - - line-a", "<134>1 - - - - - line-b"]
+    fwd._send_lines(cfg, lines)
+
+    assert len(sent) == 2
+    assert sent[0][0].startswith(b"<134>1 ")
+    # No RFC6587 length prefix (would start with ASCII digit + space).
+    assert b" line-a" in sent[0][0]
+    assert all(addr == ("siem.example.com", 514) for _payload, addr in sent)
+
+
+def test_udp_send_truncates_oversize_datagram(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.syslog import forwarder as fwd
+
+    captured: list[bytes] = []
+
+    class _FakeUdpSocket:
+        def settimeout(self, _t: float) -> None:
+            pass
+
+        def sendto(self, data: bytes, _addr: tuple[str, int]) -> None:
+            captured.append(data)
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(fwd.socket, "socket", lambda *_a, **_kw: _FakeUdpSocket())
+
+    cfg = _cfg(protocol="udp", port=514)
+    big = "X" * (fwd.UDP_MAX_BYTES + 200)
+    fwd._send_lines(cfg, [big])
+    assert len(captured) == 1
+    assert len(captured[0]) <= fwd.UDP_MAX_BYTES
+    assert captured[0].endswith(b"...[truncated]")
+
+
 # --------------- endpoint -------------------------------------------------
 
 

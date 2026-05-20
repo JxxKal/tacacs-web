@@ -56,7 +56,7 @@ class SyslogStatusRead(BaseModel):
     enabled: bool
     host: str | None
     port: int
-    protocol: Literal["tcp", "tls"]
+    protocol: Literal["udp", "tcp", "tls"]
     facility: int
     app_name: str
     hostname: str
@@ -75,7 +75,7 @@ class SyslogUpdate(BaseModel):
     enabled: bool = False
     host: str = Field(..., min_length=1, max_length=255)
     port: int = Field(default=6514, ge=1, le=65535)
-    protocol: Literal["tcp", "tls"] = "tls"
+    protocol: Literal["udp", "tcp", "tls"] = "tls"
     facility: int = Field(default=16, ge=0, le=23)
     app_name: str = Field(default="tacacs-web", min_length=1, max_length=48)
     hostname: str = Field(default="tacacs-web", min_length=1, max_length=255)

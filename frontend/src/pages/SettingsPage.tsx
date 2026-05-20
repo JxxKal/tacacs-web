@@ -199,7 +199,7 @@ interface SyslogFormValues {
   enabled: boolean;
   host: string;
   port: number;
-  protocol: "tcp" | "tls";
+  protocol: "udp" | "tcp" | "tls";
   facility: number;
   app_name: string;
   hostname: string;
@@ -320,10 +320,11 @@ function SyslogForm({
             data={[
               { value: "tls", label: "tls" },
               { value: "tcp", label: "tcp" },
+              { value: "udp", label: "udp" },
             ]}
             value={form.values.protocol}
             onChange={(v) =>
-              form.setFieldValue("protocol", (v as "tcp" | "tls") ?? "tls")
+              form.setFieldValue("protocol", (v as "udp" | "tcp" | "tls") ?? "tls")
             }
             w={120}
           />

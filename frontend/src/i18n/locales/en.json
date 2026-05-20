@@ -251,7 +251,7 @@
     "samlKeypairRegenerated": "New SP keypair generated",
     "samlSignInButton": "Sign in with SAML",
     "syslogTitle": "Syslog forwarder",
-    "syslogDescription": "Streams accounting records AND audit-log events (TACACS login success/failure, web-UI logins, CRUD actions) to an external SIEM over TCP or TLS in RFC5424 + RFC6587 framing. `*.failed` events get syslog severity Warning; everything else Info. ADR-0008.",
+    "syslogDescription": "Streams accounting records AND audit-log events (TACACS login success/failure, web-UI logins, CRUD actions) to an external SIEM. Protocols: UDP (RFC5426, one datagram per event, default port 514) — TCP/TLS (RFC6587 octet-counted, default 6514 for TLS, 514 for TCP). `*.failed` events get syslog severity Warning; everything else Info. ADR-0008.",
     "syslogUnconfiguredHint": "Not running. Enable below and set host + port; the worker picks up changes on the next poll cycle.",
     "syslogEnabled": "Enabled",
     "syslogHost": "Host",
