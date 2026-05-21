@@ -5,7 +5,6 @@ import {
   Center,
   Container,
   Divider,
-  Group,
   PasswordInput,
   Stack,
   Text,
@@ -73,16 +72,12 @@ export function LoginPage() {
         <Stack>
           <Card withBorder shadow="md" padding="xl">
             <Stack>
-              <Stack gap={4}>
-                <Group gap="xs">
-                  <Logo size={36} />
-                  <Stack gap={0}>
-                    <Title order={3}>{t("login.title")}</Title>
-                    <Text size="sm" c="dimmed">
-                      {t("app.title")}
-                    </Text>
-                  </Stack>
-                </Group>
+              <Stack align="center" gap="xs">
+                <Logo size={112} />
+                <Title order={2}>{t("app.title")}</Title>
+                <Text size="sm" c="dimmed">
+                  {t("login.title")}
+                </Text>
               </Stack>
               <Button
                 component="a"
