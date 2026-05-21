@@ -5,6 +5,7 @@ import {
   Center,
   Container,
   Divider,
+  Group,
   PasswordInput,
   Stack,
   Text,
@@ -20,6 +21,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useLogin, useMe } from "@/api/auth";
 import { ApiError } from "@/api/client";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { Logo } from "@/components/Logo";
 
 interface LocationState {
   from?: string;
@@ -72,10 +74,15 @@ export function LoginPage() {
           <Card withBorder shadow="md" padding="xl">
             <Stack>
               <Stack gap={4}>
-                <Title order={3}>{t("login.title")}</Title>
-                <Text size="sm" c="dimmed">
-                  {t("app.title")}
-                </Text>
+                <Group gap="xs">
+                  <Logo size={36} />
+                  <Stack gap={0}>
+                    <Title order={3}>{t("login.title")}</Title>
+                    <Text size="sm" c="dimmed">
+                      {t("app.title")}
+                    </Text>
+                  </Stack>
+                </Group>
               </Stack>
               <Button
                 component="a"

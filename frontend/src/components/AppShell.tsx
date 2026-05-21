@@ -30,6 +30,7 @@ import { Link, NavLink as RouterNavLink, useNavigate } from "react-router-dom";
 import { useLogout, useMe } from "@/api/auth";
 import { useSetupStatus } from "@/api/setup";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { Logo } from "@/components/Logo";
 
 interface Props {
   children: ReactNode;
@@ -61,8 +62,9 @@ export function AppShell({ children }: Props) {
     >
       <MantineAppShell.Header>
         <Group h="100%" px="md" justify="space-between">
-          <Group>
+          <Group gap="xs">
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
+            <Logo size={28} />
             <Title order={4}>{t("app.title")}</Title>
           </Group>
           <Group gap="xs">
