@@ -97,6 +97,7 @@
     "deviceGroup": "Gerätegruppe",
     "currentSecret": "Aktuelles Shared Secret",
     "secretCreateHint": "Wird verschlüsselt gespeichert. Kann auch später per Rotate-Secret nachgereicht werden.",
+    "secretEditHint": "Leer lassen, um das gespeicherte Secret beizubehalten. Eine Eingabe überschreibt es direkt (ohne Übergangsfenster) — Secret auf dem Gerät passend setzen.",
     "secretStatus": "Secret",
     "secretActive": "Aktiv",
     "secretMissing": "Fehlt",

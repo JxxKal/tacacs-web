@@ -18,6 +18,7 @@ export interface DeviceUpdateInput {
   ip_or_cidr?: string;
   device_group_id?: number;
   description?: string | null;
+  current_secret?: string | null;
 }
 
 export function useDevices() {

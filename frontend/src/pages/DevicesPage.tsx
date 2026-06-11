@@ -135,6 +135,7 @@ export function DevicesPage() {
           ip_or_cidr: values.ip_or_cidr.trim(),
           device_group_id: Number(values.device_group_id),
           description: values.description.trim() || null,
+          current_secret: values.current_secret.trim() || null,
         });
         notifications.show({
           color: "green",
@@ -393,13 +394,15 @@ function Editor({ mode, initial, groupOptions, t, onCancel, onSubmit }: EditorPr
           searchable
           {...form.getInputProps("device_group_id")}
         />
-        {mode === "create" && (
-          <PasswordInput
-            label={t("devices.currentSecret")}
-            description={t("devices.secretCreateHint")}
-            {...form.getInputProps("current_secret")}
-          />
-        )}
+        <PasswordInput
+          label={t("devices.currentSecret")}
+          description={
+            mode === "create"
+              ? t("devices.secretCreateHint")
+              : t("devices.secretEditHint")
+          }
+          {...form.getInputProps("current_secret")}
+        />
         <Textarea
           label={t("common.description")}
           autosize
