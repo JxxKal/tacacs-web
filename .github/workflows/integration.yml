@@ -16,11 +16,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: bootstrap secrets
-        run: |
-          mkdir -p secrets
-          openssl rand -base64 32 > secrets/master.key
-          printf '%s' "$POSTGRES_PASSWORD" > secrets/postgres_password
+      - name: generate master key
+        # Secrets are env-vars now (no Docker-secret files). POSTGRES_PASSWORD
+        # and TACACS_SHARED_SECRET come from the job env above; the master key
+        # is generated per-run and exported for the compose `:?` guards.
+        run: echo "MASTER_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
 
       - uses: actions/setup-python@v5
         with:

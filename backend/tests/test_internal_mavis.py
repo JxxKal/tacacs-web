@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import ldap_bind
 from app.db.models import (
@@ -254,3 +255,67 @@ def test_info_ack_returns_rendered_profile() -> None:
     assert body["profile"] is not None
     assert "set priv-lvl = 15" in body["profile"]
     assert "if (service == shell)" in body["profile"]
+
+
+# ---------------------------------------------------------------------------
+# Case-insensitive username matching (real DB)
+#
+# AD stores the casing as created (e.g. `SSCHNACK.OT`), but end users type
+# their sAMAccountName lowercase. The `_FakeSession` above ignores the SQL
+# statement, so the actual `lower(...)` comparison can only be verified
+# against a real engine — hence these use the async_db_session fixture.
+# ---------------------------------------------------------------------------
+
+
+async def test_auth_matches_username_case_insensitively(
+    async_db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async_db_session.add(
+        User(
+            sam_account_name="SSCHNACK.OT",
+            distinguished_name="cn=sschnack,dc=x",
+            enabled=True,
+        )
+    )
+    async_db_session.add(
+        SystemSetting(key="ldap.url", value="ldaps://dc1.corp.example:636")
+    )
+    await async_db_session.commit()
+
+    async def _override() -> AsyncIterator[AsyncSession]:
+        yield async_db_session
+
+    app.dependency_overrides[get_session] = _override
+    _patch_verifier(monkeypatch, lambda *_args, **_kw: True)
+    with TestClient(app) as client:
+        response = client.post(
+            "/internal/mavis/auth",
+            json={"username": "sschnack.ot", "password": "hunter2"},
+        )
+    assert response.json() == {"result": "ACK", "reason": None}
+
+
+async def test_info_matches_username_case_insensitively(
+    async_db_session: AsyncSession,
+) -> None:
+    async_db_session.add(
+        User(
+            sam_account_name="SSCHNACK.OT",
+            distinguished_name="cn=sschnack,dc=x",
+            enabled=True,
+        )
+    )
+    await async_db_session.commit()
+
+    async def _override() -> AsyncIterator[AsyncSession]:
+        yield async_db_session
+
+    app.dependency_overrides[get_session] = _override
+    with TestClient(app) as client:
+        response = client.post(
+            "/internal/mavis/info",
+            json={"username": "sschnack.ot", "nas_ip": "10.1.1.1"},
+        )
+    # No device seeded → resolves past the user lookup to unknown_nas, which
+    # proves the user was found case-insensitively (else it'd be unknown_user).
+    assert response.json()["reason"] == "unknown_nas"

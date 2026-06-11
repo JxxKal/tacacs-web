@@ -97,6 +97,7 @@
     "deviceGroup": "Device group",
     "currentSecret": "Current shared secret",
     "secretCreateHint": "Stored encrypted. Provide later via rotate-secret if you want to skip for now.",
+    "secretEditHint": "Leave empty to keep the stored secret. Entering a value overwrites it directly (no overlap window) — set the matching secret on the device.",
     "secretStatus": "Secret",
     "secretActive": "Active",
     "secretMissing": "Missing",

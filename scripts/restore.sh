@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Restore a tacacs-web Postgres dump produced by ./scripts/backup.sh.
 #
-# Destructive operation: this drops the existing database content. Requires the
-# master-key file used at backup time to be installed at secrets/master.key
-# before starting the stack again — otherwise the restored ciphertext is unreadable.
+# Destructive operation: this drops the existing database content. The stack
+# must run with the same MASTER_KEY that was active at backup time (docker/.env
+# or your Portainer stack env) — otherwise the restored ciphertext is unreadable.
 #
 # Usage:  ./scripts/restore.sh path/to/tacacs-YYYYMMDDTHHMMSSZ.dump
 set -euo pipefail

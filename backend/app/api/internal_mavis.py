@@ -23,7 +23,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -79,7 +79,11 @@ async def mavis_auth(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> AuthResponse:
     user = (
-        await session.execute(select(User).where(User.sam_account_name == req.username))
+        await session.execute(
+            select(User).where(
+                func.lower(User.sam_account_name) == req.username.lower()
+            )
+        )
     ).scalar_one_or_none()
     endpoint = await resolve_ldap_endpoint(session)
 
@@ -112,7 +116,7 @@ async def mavis_info(
         await session.execute(
             select(User)
             .options(selectinload(User.groups))
-            .where(User.sam_account_name == req.username)
+            .where(func.lower(User.sam_account_name) == req.username.lower())
         )
     ).scalar_one_or_none()
 

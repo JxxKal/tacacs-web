@@ -71,6 +71,12 @@ class DeviceUpdate(BaseModel):
     ip_or_cidr: str | None = Field(default=None, min_length=1, max_length=64)
     device_group_id: int | None = None
     description: str | None = Field(default=None, max_length=2048)
+    current_secret: str | None = Field(default=None, max_length=512)
+    """Optional plaintext shared secret. When non-empty, overwrites
+    `current_secret_enc` directly — a deliberate hard set, not a rotation:
+    the operator changes the secret on the device by hand anyway, so the
+    previous-secret overlap window (`/rotate-secret`, ADR-0007) doesn't
+    apply. `None` / empty means leave the stored secret untouched."""
 
     @field_validator("ip_or_cidr")
     @classmethod
@@ -198,6 +204,10 @@ async def update_device(
     if payload.description is not None:
         changed.append("description")
         row.description = payload.description
+    if payload.current_secret:
+        # Hard set — never log the value itself, only that it changed.
+        row.current_secret_enc = payload.current_secret
+        changed.append("secret")
     try:
         await session.flush()
     except IntegrityError as exc:

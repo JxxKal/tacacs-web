@@ -174,6 +174,29 @@ def test_device_lifecycle(client: TestClient) -> None:
     assert body["previous_retired_at"] is not None
 
 
+def test_device_update_sets_secret_directly(client: TestClient) -> None:
+    dg_id = _make_device_group(client)
+    # Create without a secret.
+    d_id = client.post(
+        "/api/v1/devices",
+        json={"name": "edge-01", "ip_or_cidr": "10.9.9.9", "device_group_id": dg_id},
+    ).json()["id"]
+    assert client.get(f"/api/v1/devices/{d_id}").json()["has_current_secret"] is False
+
+    # Editing with a secret sets `current` directly — a hard set, NOT a
+    # rotation, so `previous` stays empty (no overlap window).
+    r = client.patch(f"/api/v1/devices/{d_id}", json={"current_secret": "topsecret"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["has_current_secret"] is True
+    assert body["has_previous_secret"] is False
+    assert "topsecret" not in r.text
+
+    # A PATCH that omits the secret leaves the stored one untouched.
+    r = client.patch(f"/api/v1/devices/{d_id}", json={"description": "relabelled"})
+    assert r.json()["has_current_secret"] is True
+
+
 def test_device_rejects_unknown_device_group(client: TestClient) -> None:
     r = client.post(
         "/api/v1/devices",

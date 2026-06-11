@@ -1,8 +1,19 @@
-# tacacs-web stack — single-host Docker Compose deployment.
+# tacacs-web stack — single-host deployment, comfortable to run as a
+# Portainer stack (Git-repository method) or via plain `docker compose`.
 #
-# Bootstrap requirements before the first `docker compose up`:
-#   1. Generate a master key:    openssl rand -base64 32 > ./secrets/master.key
-#   2. Pick DB + base URL env in .env  (see .env.example)
+# Secrets are passed as environment variables so Portainer's stack
+# editor can manage them natively (standalone Docker has no Swarm secret
+# store). Required env — set in Portainer's "Environment variables" panel
+# or in docker/.env (see .env.example):
+#
+#   POSTGRES_PASSWORD   DB password (used by both `db` and `backend`)
+#   MASTER_KEY          AES-GCM master key, base64 of 32 bytes
+#   TACACS_SHARED_SECRET  catch-all NAS secret (M2)
+#   BASE_URL            external https URL
+#
+# Prefer mounting the master key as a file instead of an env var? See
+# DEPLOY.md §3.8 — set master_key_file / database_password_file and add
+# a bind mount; the app reads the file first when present.
 #
 # All services log structured JSON on stdout.
 
@@ -20,9 +31,7 @@ services:
       <<: *common-env
       POSTGRES_DB: ${POSTGRES_DB:-tacacs}
       POSTGRES_USER: ${POSTGRES_USER:-tacacs}
-      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
-    secrets:
-      - postgres_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -44,12 +53,9 @@ services:
     environment:
       <<: *common-env
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-tacacs}@db:5432/${POSTGRES_DB:-tacacs}
-      DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
-      MASTER_KEY_FILE: /run/secrets/master_key
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      MASTER_KEY: ${MASTER_KEY:?MASTER_KEY must be set (base64 of 32 bytes)}
       BASE_URL: ${BASE_URL:-https://localhost:8443}
-    secrets:
-      - postgres_password
-      - master_key
     volumes:
       - tls-state:/var/lib/tacacs-web/tls
       # Shared with the tac_plus-ng container; backend writes the
@@ -78,7 +84,7 @@ services:
         condition: service_healthy
     environment:
       <<: *common-env
-      TACACS_SHARED_SECRET: ${TACACS_SHARED_SECRET:?TACACS_SHARED_SECRET must be set (e.g. in .env)}
+      TACACS_SHARED_SECRET: ${TACACS_SHARED_SECRET:?TACACS_SHARED_SECRET must be set}
       # The MAVIS child POSTs each AUTH packet to the backend; DB + master
       # key live there, not here.
       TACACS_BACKEND_URL: http://backend:8000
@@ -101,8 +107,8 @@ services:
       - internal
 
   # OpenLDAP harness used by the `integration` profile to drive the live-bind
-   # path of the MAVIS handler end-to-end. Not part of the production stack —
-   # operators point the real AD/LDAPS endpoint at the backend instead.
+  # path of the MAVIS handler end-to-end. Not part of the production stack —
+  # operators point the real AD/LDAPS endpoint at the backend instead.
   openldap:
     image: bitnami/openldap:2.6
     profiles: [integration]
@@ -152,12 +158,6 @@ services:
       start_period: 15s
     networks:
       - internal
-
-secrets:
-  master_key:
-    file: ../secrets/master.key
-  postgres_password:
-    file: ../secrets/postgres_password
 
 volumes:
   postgres-data:
