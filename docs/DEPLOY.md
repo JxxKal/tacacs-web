@@ -289,18 +289,43 @@ Alembic applies migrations.
 
 ### 3.4a Deploy as a Portainer stack
 
-The same `docker/compose.yml` runs as a Portainer **stack**. Because the
-images are built from source (the `tac_plus-ng` daemon is compiled, the
-SPA is built with Vite) and there is no image registry, use the
-**Repository** method so Portainer has the build context — the Web-editor
-and Upload methods cannot build images.
+The images are built from source (the `tac_plus-ng` daemon is compiled,
+the SPA is built with Vite) and there is no image registry — so the two
+Portainer paths differ in *who builds*:
 
-> This is a build-on-the-host deployment. On an isolated / OT host the
-> Docker **daemon proxy** and **build-arg proxy** from
-> [§3.0](#30-behind-a-corporate-proxy-skip-if-you-have-direct-internet)
-> must be in place first, or the build fails at the base-image pull or a
-> dependency-install stage. Portainer surfaces the build log under the
-> stack on failure.
+- **Method A — Repository:** Portainer clones the repo and builds. One
+  step, but Portainer itself needs internet (the clone + the build).
+- **Method B — Web editor + pre-built images:** you build on the host
+  via CLI, then paste an image-only compose. Portainer needs **no**
+  internet at all. Best fit for an isolated/OT host.
+
+> **Three independent proxy scopes** on an isolated host — don't confuse
+> them ([§3.0](#30-behind-a-corporate-proxy-skip-if-you-have-direct-internet)):
+> the Docker **daemon proxy** (image pulls), the **build-arg proxy**
+> (`apt`/`npm`/`uv` inside the Dockerfiles), and — only for Method A —
+> the **Portainer-container proxy** (Portainer's own `git clone`). A
+> failing clone with `lookup github.com … i/o timeout` is the third one
+> missing.
+
+#### Method A — Repository (Portainer builds)
+
+> Set `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` on the **Portainer
+> container** itself and recreate it (env only applies on container
+> creation; the `portainer_data` volume keeps your data):
+>
+> ```sh
+> docker rm -f portainer
+> docker run -d -p 9443:9443 --name portainer --restart=always \
+>   -e HTTP_PROXY=http://PROXY_HOST:PORT \
+>   -e HTTPS_PROXY=http://PROXY_HOST:PORT \
+>   -e NO_PROXY=localhost,127.0.0.1,10.0.0.0/8,172.16.0.0/12,.local \
+>   -v /var/run/docker.sock:/var/run/docker.sock \
+>   -v portainer_data:/data \
+>   portainer/portainer-ce:latest   # match your existing image/ports
+> ```
+>
+> With the proxy set, the proxy resolves `github.com` for the clone, so the
+> internal-DNS timeout disappears too.
 
 1. **Portainer → Stacks → Add stack → Repository.**
 2. **Repository URL:** `https://github.com/JxxKal/tacacs-web.git`
@@ -330,8 +355,147 @@ the backend image is rebuilt — the Alembic migrations are baked into the
 image at build time, so a plain restart would not pick up a new
 migration). On redeploy the backend re-runs `alembic upgrade head`.
 
-> The catch-all `openldap` service is gated behind the `integration`
-> Compose profile and never starts in a normal deploy — leave it alone.
+#### Method B — Web editor + pre-built images (no Portainer internet)
+
+The Web editor has no build context, so it cannot compile the `build:`
+services. Build them once on the host (where the daemon + build-arg proxy
+already work), then deploy from those local images.
+
+1. **Build the images on the host** — this only produces images, it does
+   not start anything:
+
+   ```sh
+   docker compose -f docker/compose.yml --env-file docker/.env build \
+     --build-arg HTTP_PROXY="$http_proxy" \
+     --build-arg HTTPS_PROXY="$https_proxy" \
+     --build-arg NO_PROXY="$no_proxy"
+   docker images | grep tacacs-web    # tacacs-web/backend:local, …/tac_plus-ng:local, …/nginx:local
+   ```
+
+2. **Portainer → Stacks → Add stack → Web editor.** Name the stack
+   **`tacacs-web`** so its named volumes (`<stack>_postgres-data`, …) line
+   up with any prior CLI deployment and your data is reused. Paste the
+   image-only compose below (it lives in the repo as
+   `docker/compose.portainer.yml` — keep the two in sync):
+
+   ```yaml
+   name: tacacs-web
+
+   x-common-env: &common-env
+     LOG_LEVEL: ${LOG_LEVEL:-INFO}
+     TZ: ${TZ:-UTC}
+
+   services:
+     db:
+       image: postgres:17-alpine
+       restart: unless-stopped
+       environment:
+         <<: *common-env
+         POSTGRES_DB: ${POSTGRES_DB:-tacacs}
+         POSTGRES_USER: ${POSTGRES_USER:-tacacs}
+         POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+       volumes:
+         - postgres-data:/var/lib/postgresql/data
+       healthcheck:
+         test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tacacs} -d ${POSTGRES_DB:-tacacs}"]
+         interval: 10s
+         timeout: 3s
+         retries: 5
+       networks: [internal]
+
+     backend:
+       image: tacacs-web/backend:local
+       restart: unless-stopped
+       depends_on:
+         db:
+           condition: service_healthy
+       environment:
+         <<: *common-env
+         DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-tacacs}@db:5432/${POSTGRES_DB:-tacacs}
+         DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+         MASTER_KEY: ${MASTER_KEY:?MASTER_KEY must be set (base64 of 32 bytes)}
+         BASE_URL: ${BASE_URL:-https://localhost:8443}
+       volumes:
+         - tls-state:/var/lib/tacacs-web/tls
+         - tac-plus-ng-config:/var/lib/tacacs-web/tac_plus-ng
+         - tac-plus-ng-acct:/var/log/tac_plus-ng
+       healthcheck:
+         test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz/ready"]
+         interval: 15s
+         timeout: 5s
+         retries: 5
+         start_period: 30s
+       networks: [internal]
+
+     tac_plus-ng:
+       image: tacacs-web/tac_plus-ng:local
+       restart: unless-stopped
+       depends_on:
+         backend:
+           condition: service_healthy
+       environment:
+         <<: *common-env
+         TACACS_SHARED_SECRET: ${TACACS_SHARED_SECRET:?TACACS_SHARED_SECRET must be set}
+         TACACS_BACKEND_URL: http://backend:8000
+       volumes:
+         - tac-plus-ng-config:/etc/tac_plus-ng/dynamic
+         - tac-plus-ng-acct:/var/log/tac_plus-ng
+       ports:
+         - "${TACACS_BIND_ADDR:-0.0.0.0}:49:49/tcp"
+       healthcheck:
+         test: ["CMD-SHELL", "nc -z localhost 49 || exit 1"]
+         interval: 15s
+         timeout: 5s
+         retries: 5
+         start_period: 20s
+       networks: [internal]
+
+     nginx:
+       image: tacacs-web/nginx:local
+       restart: unless-stopped
+       depends_on:
+         backend:
+           condition: service_healthy
+       environment:
+         <<: *common-env
+         UPSTREAM_BACKEND: backend:8000
+       volumes:
+         - tls-state:/etc/nginx/tls
+       ports:
+         - "${HTTPS_BIND_ADDR:-0.0.0.0}:${HTTPS_HOST_PORT:-8443}:8443"
+       healthcheck:
+         test: ["CMD", "curl", "-fsS", "-k", "https://localhost:8443/healthz/live"]
+         interval: 15s
+         timeout: 5s
+         retries: 5
+         start_period: 15s
+       networks: [internal]
+
+   volumes:
+     postgres-data:
+     tls-state:
+     tac-plus-ng-config:
+     tac-plus-ng-acct:
+
+   networks:
+     internal:
+       driver: bridge
+   ```
+
+3. **Environment variables** — same required keys as Method A
+   (`POSTGRES_PASSWORD`, `MASTER_KEY`, `TACACS_SHARED_SECRET`, `BASE_URL`).
+4. **Deploy the stack.** Portainer just starts the containers from the
+   local images — no build, no clone. The `backend` runs
+   `alembic upgrade head` on startup as usual.
+
+**Updating later (Method B):** rebuild the images on the host (step 1) on
+the new code, then in Portainer **Pull and redeploy** the stack. Because
+the `:local` tag is reused, Portainer picks up the freshly built image and
+the backend re-runs the migrations on restart.
+
+> The `openldap` service (integration smoke only) is intentionally absent
+> from the Web-editor compose and gated behind the `integration` profile
+> in `docker/compose.yml` — it never runs in a normal deploy.
 
 ### 3.5 Bootstrap the local admin
 

@@ -43,6 +43,9 @@ services:
       - internal
 
   backend:
+    # Explicit tag so `docker compose build` produces a stable image name
+    # the Portainer Web-editor compose can reference (docker/compose.portainer.yml).
+    image: tacacs-web/backend:local
     build:
       context: ..
       dockerfile: docker/backend/Dockerfile
@@ -75,6 +78,7 @@ services:
       - internal
 
   tac_plus-ng:
+    image: tacacs-web/tac_plus-ng:local
     build:
       context: ..
       dockerfile: docker/tac_plus-ng/Dockerfile
@@ -130,6 +134,7 @@ services:
       - internal
 
   nginx:
+    image: tacacs-web/nginx:local
     build:
       context: ..
       dockerfile: docker/nginx/Dockerfile

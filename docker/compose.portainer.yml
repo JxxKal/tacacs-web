@@ -1,0 +1,125 @@
+# tacacs-web — image-only stack for the Portainer **Web editor**.
+#
+# The Web editor has no build context, so it cannot compile the images.
+# Build them once on the host first (the proxy must be configured there):
+#
+#   docker compose -f docker/compose.yml --env-file docker/.env build
+#
+# That produces the tacacs-web/* :local images this file references. Then
+# paste this file into Portainer (Stacks -> Add stack -> Web editor),
+# fill the env vars below in the "Environment variables" panel, and deploy.
+# Portainer never needs internet / a git clone this way; `db` is pulled via
+# the Docker daemon proxy.
+#
+# Name the stack `tacacs-web` so its named volumes line up with a prior
+# CLI deployment (`<project>_<volume>`) and your data is reused.
+#
+# Required env (no defaults — the stack refuses to start without them):
+#   POSTGRES_PASSWORD  MASTER_KEY  TACACS_SHARED_SECRET  BASE_URL
+# Keep this in sync with docker/compose.yml (the build-from-source variant).
+
+name: tacacs-web
+
+x-common-env: &common-env
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  TZ: ${TZ:-UTC}
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      POSTGRES_DB: ${POSTGRES_DB:-tacacs}
+      POSTGRES_USER: ${POSTGRES_USER:-tacacs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tacacs} -d ${POSTGRES_DB:-tacacs}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - internal
+
+  backend:
+    image: tacacs-web/backend:local
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-tacacs}@db:5432/${POSTGRES_DB:-tacacs}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      MASTER_KEY: ${MASTER_KEY:?MASTER_KEY must be set (base64 of 32 bytes)}
+      BASE_URL: ${BASE_URL:-https://localhost:8443}
+    volumes:
+      - tls-state:/var/lib/tacacs-web/tls
+      - tac-plus-ng-config:/var/lib/tacacs-web/tac_plus-ng
+      - tac-plus-ng-acct:/var/log/tac_plus-ng
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - internal
+
+  tac_plus-ng:
+    image: tacacs-web/tac_plus-ng:local
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      TACACS_SHARED_SECRET: ${TACACS_SHARED_SECRET:?TACACS_SHARED_SECRET must be set}
+      TACACS_BACKEND_URL: http://backend:8000
+    volumes:
+      - tac-plus-ng-config:/etc/tac_plus-ng/dynamic
+      - tac-plus-ng-acct:/var/log/tac_plus-ng
+    ports:
+      - "${TACACS_BIND_ADDR:-0.0.0.0}:49:49/tcp"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 49 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - internal
+
+  nginx:
+    image: tacacs-web/nginx:local
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      <<: *common-env
+      UPSTREAM_BACKEND: backend:8000
+    volumes:
+      - tls-state:/etc/nginx/tls
+    ports:
+      - "${HTTPS_BIND_ADDR:-0.0.0.0}:${HTTPS_HOST_PORT:-8443}:8443"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-k", "https://localhost:8443/healthz/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - internal
+
+volumes:
+  postgres-data:
+  tls-state:
+  tac-plus-ng-config:
+  tac-plus-ng-acct:
+
+networks:
+  internal:
+    driver: bridge
