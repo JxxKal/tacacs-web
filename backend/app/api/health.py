@@ -37,7 +37,7 @@ async def ready() -> JSONResponse:
         checks["db"] = f"error: {exc.__class__.__name__}"
         overall_ok = False
 
-    if settings.master_key_file is None:
+    if not settings.master_key_configured():
         checks["master_key"] = "not_configured"
         overall_ok = False
     else:

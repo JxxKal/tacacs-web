@@ -4,7 +4,8 @@
 # The dump is encrypted-at-rest at the column level (see ADR-0004), so the dump
 # file alone is unrecoverable without the master key. Back up both:
 #   * the dump file produced by this script
-#   * the master-key file (./secrets/master.key by default)
+#   * the MASTER_KEY value in use (docker/.env, or your Portainer stack env;
+#     or the mounted key file if you use the §3.8 file-mount variant)
 #
 # Usage:  ./scripts/backup.sh [output-dir]
 # Default output dir: ./backups
@@ -28,5 +29,5 @@ docker compose --project-directory docker exec -T db \
 
 echo "Wrote $(wc -c < "${OUT_FILE}") bytes to ${OUT_FILE}"
 echo
-echo "REMINDER: also back up the master key (secrets/master.key)."
+echo "REMINDER: also back up the MASTER_KEY value (docker/.env or Portainer stack env)."
 echo "Without it, this dump is unrecoverable."

@@ -157,18 +157,27 @@ cd tacacs-web
 
 ### 3.2 Generate secrets
 
+Both secrets are supplied as **environment variables** (`MASTER_KEY`,
+`POSTGRES_PASSWORD`) so they can be managed in Portainer's stack editor
+without a Swarm secret store. Generate two values and keep them for the
+next step:
+
 ```sh
-mkdir -p secrets
+# AES-GCM master key — base64 of 32 bytes, single line.
+openssl rand -base64 32
 
-# AES-GCM master key — 32 bytes, base64 single line.
-openssl rand -base64 32 > secrets/master.key
-
-# Postgres password — one line, no trailing newline.
-openssl rand -base64 24 | tr -d '\n' > secrets/postgres_password
+# Postgres password — single line, no trailing newline.
+openssl rand -base64 24 | tr -d '\n'; echo
 ```
 
-Back both up immediately. Without `secrets/master.key` a DB dump is
-unreadable (ADR-0004).
+Back both up immediately. Without the `MASTER_KEY` value a DB dump is
+unreadable (ADR-0004) — treat it like a root credential.
+
+> **Security note.** As an env var the master key is visible via
+> `docker inspect` / the Portainer stack config to anyone with host or
+> Portainer-admin access. On a single-operator OT host that is the normal
+> tradeoff for UI manageability. If you need it off the process
+> environment, mount it as a file instead — see [§3.8](#38-optional-mount-the-master-key-as-a-file-instead-of-env).
 
 ### 3.3 Copy the env template
 
@@ -180,6 +189,8 @@ Edit `docker/.env`:
 
 | Key | Notes |
 |---|---|
+| `POSTGRES_PASSWORD` | **Required.** The value generated in [§3.2](#32-generate-secrets). Used by both the `db` container (DB init) and the `backend` (connection). No default — the stack refuses to start if unset. |
+| `MASTER_KEY` | **Required.** The base64 master key from [§3.2](#32-generate-secrets). No default — the stack refuses to start if unset. |
 | `BASE_URL` | The HTTPS URL operators will reach. Used for SAML callbacks in M5b and absolute URLs. Example: `https://tacacs.internal.example.com:8443`. Must include the same port as `HTTPS_HOST_PORT` (see below) — otherwise the SAML ACS redirect breaks. |
 | `TACACS_SHARED_SECRET` | Generated value, **at least 32 chars**. Every NAS that talks to us uses this one secret until the per-device-secret regen flow lands (see [Current limitations](#current-limitations)). |
 | `TZ` | Affects log timestamps. Use `Europe/Berlin` or your host TZ. |
@@ -187,7 +198,9 @@ Edit `docker/.env`:
 | `TACACS_BIND_ADDR` | Default `0.0.0.0`. Set to a specific host IP if the host has multiple NICs and TACACS should only listen on the OT-facing one. The TACACS+ TCP port itself is the hard-coded `49` — every NAS expects it there, so it is **not** configurable. |
 | `HTTPS_BIND_ADDR` | Default `0.0.0.0`. Same idea for the operator UI: pin to one host IP if you want the UI reachable only on the management interface. |
 
-### 3.4 Build and start the stack
+### 3.4 Build and start the stack (plain `docker compose`)
+
+Prefer a UI? Skip to [§3.4a](#34a-deploy-as-a-portainer-stack).
 
 ```sh
 docker compose -f docker/compose.yml up -d --build
@@ -212,6 +225,52 @@ docker compose -f docker/compose.yml ps
 Expect `db`, `backend`, `tac_plus-ng`, `nginx` all in `running (healthy)`.
 The first few seconds the backend's healthcheck may be `starting` while
 Alembic applies migrations.
+
+### 3.4a Deploy as a Portainer stack
+
+The same `docker/compose.yml` runs as a Portainer **stack**. Because the
+images are built from source (the `tac_plus-ng` daemon is compiled, the
+SPA is built with Vite) and there is no image registry, use the
+**Repository** method so Portainer has the build context — the Web-editor
+and Upload methods cannot build images.
+
+> This is a build-on-the-host deployment. On an isolated / OT host the
+> Docker **daemon proxy** and **build-arg proxy** from
+> [§3.0](#30-behind-a-corporate-proxy-skip-if-you-have-direct-internet)
+> must be in place first, or the build fails at the base-image pull or a
+> dependency-install stage. Portainer surfaces the build log under the
+> stack on failure.
+
+1. **Portainer → Stacks → Add stack → Repository.**
+2. **Repository URL:** `https://github.com/JxxKal/tacacs-web.git`
+   **Reference:** the branch or tag you deploy (e.g. `refs/heads/main`).
+   **Compose path:** `docker/compose.yml`
+   (`build.context: ..` resolves to the repo root inside Portainer's clone.)
+3. **Environment variables** — add each key from `docker/.env.example`.
+   The required ones (no default; the stack refuses to start without them):
+
+   | Key | Value |
+   |---|---|
+   | `POSTGRES_PASSWORD` | DB password from [§3.2](#32-generate-secrets) |
+   | `MASTER_KEY` | base64 master key from [§3.2](#32-generate-secrets) |
+   | `TACACS_SHARED_SECRET` | catch-all NAS secret (≥32 chars) |
+   | `BASE_URL` | external HTTPS URL incl. port |
+
+   The rest (`POSTGRES_DB`, `POSTGRES_USER`, `LOG_LEVEL`, `TZ`,
+   `HTTPS_HOST_PORT`, `TACACS_BIND_ADDR`, `HTTPS_BIND_ADDR`) have sane
+   defaults — override only when needed.
+4. **Deploy the stack.** First build takes ~3–5 min. The `backend`
+   container runs `alembic upgrade head` on startup, so migrations apply
+   automatically — no host-side `alembic` needed.
+
+**Updating later:** push/merge the change, then in Portainer open the
+stack and use **Pull and redeploy** (enable *Re-pull image / rebuild* so
+the backend image is rebuilt — the Alembic migrations are baked into the
+image at build time, so a plain restart would not pick up a new
+migration). On redeploy the backend re-runs `alembic upgrade head`.
+
+> The catch-all `openldap` service is gated behind the `integration`
+> Compose profile and never starts in a normal deploy — leave it alone.
 
 ### 3.5 Bootstrap the local admin
 
@@ -268,6 +327,40 @@ filled in later.
 The wizard can be re-opened from `/setup` at any time. Both the
 completion and the re-open events land in the audit log under
 `setup.wizard_completed` / `setup.wizard_reopened`.
+
+### 3.8 (optional) Mount the master key as a file instead of env
+
+The env-var path ([§3.2](#32-generate-secrets)) is the comfortable default
+for Portainer. If your threat model says the AES-GCM master key must not
+appear in `docker inspect` / the stack config, mount it as a file — the
+backend reads `master_key_file` first and only falls back to `MASTER_KEY`
+when no file is set (`app/core/config.py`). The same applies to
+`database_password_file` vs `DATABASE_PASSWORD`.
+
+1. Place the key on the host, readable only by the Docker user:
+
+   ```sh
+   install -m 0600 /dev/stdin /opt/tacacs-web/master.key <<<"$(openssl rand -base64 32)"
+   ```
+
+2. In the stack, drop `MASTER_KEY`, bind-mount the file read-only, and
+   point the backend at it:
+
+   ```yaml
+   services:
+     backend:
+       environment:
+         MASTER_KEY_FILE: /run/secrets/master_key
+       volumes:
+         - /opt/tacacs-web/master.key:/run/secrets/master_key:ro
+   ```
+
+   (In Portainer, add the bind mount under the stack's `backend` service
+   in the Web editor, or keep it in the repo's compose on a private fork.)
+
+The file must contain either 32 raw bytes or a base64 line that decodes to
+32 bytes; otherwise the backend's readiness check reports
+`master_key: error` and stays `503`.
 
 ---
 
@@ -380,8 +473,11 @@ DB-only dumps via the included helpers:
 The dump is encrypted *at the column level* — ciphertext blobs only. To
 restore you also need:
 
-- `secrets/master.key` — the AES-GCM key that was active at backup time.
-- `secrets/postgres_password` — for Postgres role auth (not required to
+- The `MASTER_KEY` value that was active at backup time — the AES-GCM key
+  that decrypts the column ciphertext. Back up the stack's env (the
+  `docker/.env` file, or your Portainer stack's env vars) somewhere safe;
+  without this exact key a dump is unreadable (ADR-0004).
+- The `POSTGRES_PASSWORD` value — for Postgres role auth (not required to
   decrypt the data; required to bring the role up).
 
 Restore is destructive: it drops the running database content before
@@ -427,9 +523,12 @@ docker compose -f docker/compose.yml exec -T db \
       `TACACS_SHARED_SECRET`.
 - [ ] Confirm Postgres is not bound to a host port (the compose file
       does not expose it; verify with `docker compose ps`).
-- [ ] Confirm `secrets/master.key` and `secrets/postgres_password` are
-      mode 0600 on the host and excluded from any host-level backup that
-      could leak them.
+- [ ] Restrict who can read `MASTER_KEY` / `POSTGRES_PASSWORD`: the
+      `docker/.env` file mode 0600, Portainer access limited to trusted
+      admins, and the values excluded from any host-level backup that
+      could leak them. For a stricter posture, mount the master key as a
+      file ([§3.8](#38-optional-mount-the-master-key-as-a-file-instead-of-env))
+      so it stays out of `docker inspect`.
 - [ ] Plan for master-key rotation. v1 has no in-place rotation tool
       yet; the path is: backup, change the key, re-insert the encrypted
       columns from a recompute, restore. Document this for your IR
@@ -458,7 +557,7 @@ deployer knows what to expect.
 
 | Symptom | Likely cause |
 |---|---|
-| Backend healthcheck stays `unhealthy` after `compose up`. | Master key missing or wrong size. Check `secrets/master.key` is exactly 32 raw bytes or base64 of 32 bytes. The backend refuses to start otherwise (ADR-0004). |
+| Backend healthcheck stays `unhealthy` after `compose up`. | Master key missing or wrong size. `MASTER_KEY` must be base64 that decodes to exactly 32 bytes (a file mount must be 32 raw bytes or base64 of 32). The readiness check reports `master_key: not_configured` / `error` and stays `503` otherwise (ADR-0004). |
 | `/login/local` always returns 401 with `invalid_credentials` even with the right password. | `local_admin` row missing — run `tacacs-web bootstrap-admin`. Or `allowed_source_cidr` is set and you are outside the CIDR. |
 | TACACS auth from a NAS fails with `tac_plus-ng` logging `bad secret`. | The shared secret on the NAS does not match `TACACS_SHARED_SECRET` in `docker/.env`. Rotate both sides in lock-step. |
 | TACACS auth fails with the daemon logging `MAVIS ERR`. | Backend unreachable from the `tac_plus-ng` container, or LDAP unreachable from the backend. Check `docker compose logs backend` for the `/internal/mavis/auth` traffic. ADR-0002's fail-closed semantics make AD-down look like an error rather than a deny. |
