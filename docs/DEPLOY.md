@@ -128,11 +128,17 @@ build` picks them up. To be explicit (and to survive a fresh CI runner
 or a `sudo` that drops env):
 
 ```sh
-docker compose -f docker/compose.yml build \
+docker compose -f docker/compose.yml --env-file docker/.env build \
   --build-arg HTTP_PROXY=$http_proxy \
   --build-arg HTTPS_PROXY=$https_proxy \
   --build-arg NO_PROXY=$no_proxy
 ```
+
+> `--env-file docker/.env` is required even for a bare `build` (see the
+> note in [§3.4](#34-build-and-start-the-stack-plain-docker-compose)) — so
+> create the env file ([§3.3](#33-copy-the-env-template)) before running
+> this. If you only want to validate the proxy wiring before filling in
+> real secrets, temporary throwaway values are fine for the build step.
 
 **Proxy with TLS interception (Zscaler, Forcepoint, …).** If your
 proxy MITMs HTTPS with its own root CA, the `apt-get` / `npm` / `uv`
@@ -183,7 +189,33 @@ unreadable (ADR-0004) — treat it like a root credential.
 
 ```sh
 cp docker/.env.example docker/.env
+chmod 600 docker/.env
 ```
+
+> **`docker compose` does not auto-load `docker/.env`.** The default `.env`
+> lookup is the *current working directory*, not the directory of the
+> `-f` file. Pass it explicitly on every command —
+> `--env-file docker/.env` — or run from inside `docker/`. The commands in
+> §3.4 already include the flag. (Portainer reads its own env panel, so
+> this only affects the CLI path.)
+
+> **Upgrading an existing file-secret deployment?** Earlier versions kept
+> the secrets in `secrets/master.key` and `secrets/postgres_password`.
+> When moving to the env-var model you **must reuse the exact same
+> values** — a different `MASTER_KEY` makes every encrypted device secret
+> in the DB unreadable, and a different `POSTGRES_PASSWORD` breaks auth
+> against the already-initialised `postgres-data` volume. Migrate them in
+> place (`cat` strips the trailing newline):
+>
+> ```sh
+> {
+>   echo "POSTGRES_PASSWORD=$(cat secrets/postgres_password)"
+>   echo "MASTER_KEY=$(cat secrets/master.key)"
+> } >> docker/.env
+> # then remove the placeholder POSTGRES_PASSWORD / MASTER_KEY lines the
+> # template shipped, so each key appears exactly once (last one wins):
+> grep -nE '^(POSTGRES_PASSWORD|MASTER_KEY)=' docker/.env
+> ```
 
 Edit `docker/.env`:
 
@@ -203,28 +235,57 @@ Edit `docker/.env`:
 Prefer a UI? Skip to [§3.4a](#34a-deploy-as-a-portainer-stack).
 
 ```sh
-docker compose -f docker/compose.yml up -d --build
+docker compose -f docker/compose.yml --env-file docker/.env up -d --build
 ```
 
 The build takes ~3-5 min on first run (the `tac_plus-ng` container is
 compiled from upstream source; the SPA is built with Vite). Subsequent
 restarts skip rebuilding unless you change source files.
 
+> The required env vars (`POSTGRES_PASSWORD`, `MASTER_KEY`,
+> `TACACS_SHARED_SECRET`) are guarded with `:?` in the compose file, so
+> Compose refuses **any** subcommand — including a bare `build` — until
+> they resolve. That is why `--env-file docker/.env` is on the command
+> even when you only build. The error `required variable POSTGRES_PASSWORD
+> is missing a value` means the env file was not picked up (see §3.3).
+
 > Behind a corporate proxy? Make sure the steps in
 > [3.0](#30-behind-a-corporate-proxy-skip-if-you-have-direct-internet)
 > are done first — without them the build either fails at the base-image
 > pull (daemon proxy missing) or inside one of the dependency-install
-> stages (build-arg proxy missing).
+> stages (build-arg proxy missing). To pass the proxy into the image
+> builds, build first with the build args, then start:
+>
+> ```sh
+> docker compose -f docker/compose.yml --env-file docker/.env build \
+>   --build-arg HTTP_PROXY="$http_proxy" \
+>   --build-arg HTTPS_PROXY="$https_proxy" \
+>   --build-arg NO_PROXY="$no_proxy"
+> docker compose -f docker/compose.yml --env-file docker/.env up -d
+> ```
 
 Verify all services are healthy:
 
 ```sh
-docker compose -f docker/compose.yml ps
+docker compose -f docker/compose.yml --env-file docker/.env ps
 ```
 
 Expect `db`, `backend`, `tac_plus-ng`, `nginx` all in `running (healthy)`.
 The first few seconds the backend's healthcheck may be `starting` while
 Alembic applies migrations.
+
+> **Tip — stop typing the flags.** Set these once per shell and every
+> `docker compose` command in the rest of this guide works without
+> `-f` / `--env-file`:
+>
+> ```sh
+> export COMPOSE_FILE=docker/compose.yml
+> export COMPOSE_ENV_FILE=docker/.env   # needs Compose ≥ v2.24
+> ```
+>
+> On older Compose, keep passing `--env-file docker/.env` explicitly. The
+> `backup.sh` / `restore.sh` scripts already handle this themselves via
+> `--project-directory docker`.
 
 ### 3.4a Deploy as a Portainer stack
 
@@ -275,7 +336,7 @@ migration). On redeploy the backend re-runs `alembic upgrade head`.
 ### 3.5 Bootstrap the local admin
 
 ```sh
-docker compose -f docker/compose.yml exec -it backend tacacs-web bootstrap-admin
+docker compose -f docker/compose.yml --env-file docker/.env exec -it backend tacacs-web bootstrap-admin
 ```
 
 It prompts for username (default `admin`) and password (twice). The
@@ -285,7 +346,7 @@ bootstrap.
 To rotate the password later:
 
 ```sh
-docker compose -f docker/compose.yml exec -it backend tacacs-web bootstrap-admin --reset-password
+docker compose -f docker/compose.yml --env-file docker/.env exec -it backend tacacs-web bootstrap-admin --reset-password
 ```
 
 ### 3.6 Accept the self-signed cert and log in
@@ -408,7 +469,7 @@ In the operator UI:
    manually:
 
    ```sh
-   docker compose -f docker/compose.yml exec -T db psql -U tacacs tacacs <<'SQL'
+   docker compose -f docker/compose.yml --env-file docker/.env exec -T db psql -U tacacs tacacs <<'SQL'
    INSERT INTO "user" (sam_account_name, distinguished_name, enabled, created_at, updated_at)
    VALUES ('jan', 'CN=jan,OU=Users,DC=corp,DC=example', true, now(), now());
    SQL
@@ -488,10 +549,13 @@ loading the dump. Keep the daemon and backend stopped while you restore.
 ## 8. Logs and observability
 
 ```sh
-docker compose -f docker/compose.yml logs -f tac_plus-ng   # daemon + MAVIS child
-docker compose -f docker/compose.yml logs -f backend       # FastAPI + auth events
-docker compose -f docker/compose.yml logs -f nginx         # access + error
+docker compose -f docker/compose.yml --env-file docker/.env logs -f tac_plus-ng   # daemon + MAVIS child
+docker compose -f docker/compose.yml --env-file docker/.env logs -f backend       # FastAPI + auth events
+docker compose -f docker/compose.yml --env-file docker/.env logs -f nginx         # access + error
 ```
+
+(Or set `COMPOSE_FILE` / `COMPOSE_ENV_FILE` once per the tip in §3.4 and
+drop the flags entirely.)
 
 Backend and the daemon log structured JSON to stdout. `LOG_LEVEL` from
 `docker/.env` is honoured per service.
@@ -500,7 +564,7 @@ The append-only audit log lives in the `audit_log` table; it's not yet
 exposed in the UI (planned). Query it directly:
 
 ```sh
-docker compose -f docker/compose.yml exec -T db \
+docker compose -f docker/compose.yml --env-file docker/.env exec -T db \
   psql -U tacacs tacacs -c "SELECT ts, actor_username_snapshot, action, summary FROM audit_log ORDER BY id DESC LIMIT 50;"
 ```
 
@@ -566,7 +630,7 @@ deployer knows what to expect.
 | `docker compose pull` / build dies with `failed to resolve reference ...: dial tcp: lookup ghcr.io: i/o timeout`. | The Docker **daemon** isn't using the proxy. Shell env doesn't propagate to it — apply the systemd override or `~/.docker/config.json` recipe in [3.0](#30-behind-a-corporate-proxy-skip-if-you-have-direct-internet). |
 | Build inside a stage fails with `certificate verify failed` against pypi / npm / apt mirrors. | Proxy is doing TLS interception. Bake the corporate CA into the build: `cp /etc/ssl/certs/corp-root.pem secrets/corp-ca.pem` and add `COPY secrets/corp-ca.pem /usr/local/share/ca-certificates/corp.crt && update-ca-certificates` near the top of the affected `Dockerfile` (backend / nginx / tac_plus-ng each have their own; the npm one also needs `npm config set cafile /usr/local/share/ca-certificates/corp.crt`). |
 | Cookie not sent on a fresh login — `/me` immediately returns 401. | You are talking HTTP to a backend that emits `Secure` cookies. Always reach the UI via HTTPS through nginx; the bootstrap self-signed cert is enough. |
-| `docker compose up` fails with `Bind for 0.0.0.0:8443 failed: port is already allocated`. | Another service already listens on 8443. Set `HTTPS_HOST_PORT=8444` (or any free port) in `docker/.env` **and** update `BASE_URL` to the same port (`https://…:8444`). Restart with `docker compose -f docker/compose.yml up -d`. The container's internal port stays 8443 either way; only the host-side mapping moves. |
+| `docker compose up` fails with `Bind for 0.0.0.0:8443 failed: port is already allocated`. | Another service already listens on 8443. Set `HTTPS_HOST_PORT=8444` (or any free port) in `docker/.env` **and** update `BASE_URL` to the same port (`https://…:8444`). Restart with `docker compose -f docker/compose.yml --env-file docker/.env up -d`. The container's internal port stays 8443 either way; only the host-side mapping moves. |
 | SAML login redirects to `https://…:8443/saml/acs` even though you changed the port. | `BASE_URL` still points at 8443. After updating `HTTPS_HOST_PORT`, `BASE_URL` must match (it drives the SP-Metadata + the ACS URL the IdP redirects to). Re-export the SP-Metadata from Settings → SAML and re-import it on the IdP. |
 
 When in doubt, both the integration smoke (`scripts/smoke-tacacs.py`)
