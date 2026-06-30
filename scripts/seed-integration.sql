@@ -52,7 +52,7 @@ FROM device_group dg
 WHERE dg.name = 'smoke-dg'
 ON CONFLICT (ip_or_cidr) DO NOTHING;
 
-INSERT INTO authorization (
+INSERT INTO "authorization" (
     principal_user_id, principal_ad_group_id,
     device_group_id, privilege_profile_id, created_at
 )
