@@ -75,7 +75,5 @@ async def test_unknown_user_returns_none(async_db_session: AsyncSession) -> None
 
 @pytest.mark.asyncio
 async def test_disabled_user_returns_none(async_db_session: AsyncSession) -> None:
-    await _seed_user(
-        async_db_session, sam="gone", group_dns=[ADMIN_DN], enabled=False
-    )
+    await _seed_user(async_db_session, sam="gone", group_dns=[ADMIN_DN], enabled=False)
     assert await _synced_group_dns(async_db_session, "gone") is None
