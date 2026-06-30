@@ -123,7 +123,10 @@ services:
       LDAP_ADMIN_USERNAME: admin
       LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD:-adminpass}
       LDAP_ROOT: dc=corp,dc=example
-      LDAP_USER_DC: users
+      # `LDAP_USER_DC` is deprecated in bitnami openldap 2.6.x and triggers a
+      # duplicate-entry crash (exit 68) during default-tree creation; the
+      # current var lands users under the same ou=users,<root> DN.
+      LDAP_USER_OU: users
       LDAP_USERS: ${LDAP_TEST_USER:-smokeuser}
       LDAP_PASSWORDS: ${LDAP_TEST_PASSWORD:-hunter2}
       LDAP_PORT_NUMBER: "1389"
