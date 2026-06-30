@@ -186,24 +186,18 @@ async def update_config(
     await _write(session, SETTING_APP_NAME, payload.app_name.strip())
     await _write(session, SETTING_HOSTNAME, payload.hostname.strip())
     await _write(session, SETTING_TLS_VERIFY, "true" if payload.tls_verify else "false")
-    await _write(
-        session, SETTING_TLS_SERVER_NAME, payload.tls_server_name or None
-    )
+    await _write(session, SETTING_TLS_SERVER_NAME, payload.tls_server_name or None)
 
     # Secrets: only touch when explicitly provided. Pass empty string
     # to delete.
     if payload.tls_ca_pem is not None:
-        await _write_secret(
-            session, SECRET_TLS_CA_PEM, payload.tls_ca_pem or None
-        )
+        await _write_secret(session, SECRET_TLS_CA_PEM, payload.tls_ca_pem or None)
     if payload.tls_client_cert_pem is not None:
         await _write_secret(
             session, SECRET_TLS_CLIENT_CERT_PEM, payload.tls_client_cert_pem or None
         )
     if payload.tls_client_key_pem is not None:
-        await _write_secret(
-            session, SECRET_TLS_CLIENT_KEY_PEM, payload.tls_client_key_pem or None
-        )
+        await _write_secret(session, SECRET_TLS_CLIENT_KEY_PEM, payload.tls_client_key_pem or None)
 
     await audit_append(
         session,
@@ -237,9 +231,7 @@ async def test_endpoint(
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="admin_required")
     cfg = await load_config(session)
     if not cfg.host:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, detail="syslog.host is not configured"
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="syslog.host is not configured")
     import asyncio
 
     try:

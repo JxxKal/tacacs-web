@@ -242,9 +242,7 @@ async def _seed_user(async_db_session: AsyncSession, sam: str = "jan") -> int:
     return int(user.id)
 
 
-async def test_authorization_lifecycle(
-    client: TestClient, async_db_session: AsyncSession
-) -> None:
+async def test_authorization_lifecycle(client: TestClient, async_db_session: AsyncSession) -> None:
     user_id = await _seed_user(async_db_session)
 
     dg_id = _make_device_group(client)
@@ -328,9 +326,7 @@ async def test_effective_permissions_surfaces_winner_and_overridden(
     admin = client.post(
         "/api/v1/privilege-profiles", json={"name": "admin", "tacacs_priv_lvl": 15}
     ).json()
-    ro = client.post(
-        "/api/v1/privilege-profiles", json={"name": "ro", "tacacs_priv_lvl": 1}
-    ).json()
+    ro = client.post("/api/v1/privilege-profiles", json={"name": "ro", "tacacs_priv_lvl": 1}).json()
 
     # Direct-user grant with priv_lvl 1 overrides the AD-group grant with 15.
     client.post(
@@ -426,9 +422,7 @@ async def test_list_ad_groups_returns_synced_groups(
 # ---------------------------------------------------------------------------
 
 
-async def test_crud_writes_audit_rows(
-    client: TestClient, async_db_session: AsyncSession
-) -> None:
+async def test_crud_writes_audit_rows(client: TestClient, async_db_session: AsyncSession) -> None:
     """Each CRUD mutation lands in audit_log with the expected action code."""
     from sqlalchemy import select
 
@@ -442,9 +436,7 @@ async def test_crud_writes_audit_rows(
     )
     from app.db.models import AuditLog
 
-    dg = client.post(
-        "/api/v1/device-groups", json={"name": "auditdg", "description": "x"}
-    ).json()
+    dg = client.post("/api/v1/device-groups", json={"name": "auditdg", "description": "x"}).json()
     client.patch(f"/api/v1/device-groups/{dg['id']}", json={"description": "y"})
     client.post(
         "/api/v1/privilege-profiles",
@@ -460,11 +452,7 @@ async def test_crud_writes_audit_rows(
     ).json()
     client.patch(f"/api/v1/devices/{dev['id']}", json={"description": "renamed"})
 
-    rows = (
-        await async_db_session.execute(
-            select(AuditLog).order_by(AuditLog.id)
-        )
-    ).scalars().all()
+    rows = (await async_db_session.execute(select(AuditLog).order_by(AuditLog.id))).scalars().all()
     actions = [r.action for r in rows]
     assert DEVICE_GROUP_CREATED in actions
     assert DEVICE_GROUP_UPDATED in actions
@@ -476,10 +464,14 @@ async def test_crud_writes_audit_rows(
     client.delete(f"/api/v1/devices/{dev['id']}")
     client.delete(f"/api/v1/device-groups/{dg['id']}")
     rows2 = (
-        await async_db_session.execute(
-            select(AuditLog).where(AuditLog.action == DEVICE_GROUP_DELETED)
+        (
+            await async_db_session.execute(
+                select(AuditLog).where(AuditLog.action == DEVICE_GROUP_DELETED)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(rows2) == 1
 
     # Actor info is attached.

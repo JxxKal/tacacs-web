@@ -117,9 +117,7 @@ def _client_ip(request: Request) -> str | None:
 async def require_session(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_session)],
-    cookie_token: Annotated[
-        str | None, Cookie(alias=SESSION_COOKIE_NAME)
-    ] = None,
+    cookie_token: Annotated[str | None, Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> SessionContext:
     """FastAPI dep: yield the active SessionContext or raise 401."""
     if not cookie_token:
@@ -127,9 +125,7 @@ async def require_session(
     now = datetime.now(UTC)
     row = await _load_active_session(session, cookie_token, now)
     if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="session_expired"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="session_expired")
     # Slide the sliding-window expiry, but never past the hard cap.
     row.last_seen_at = now
     row.expires_at = min(now + SESSION_SLIDING_LIFETIME, _as_utc(row.hard_expires_at))
@@ -150,7 +146,5 @@ async def require_admin(
     ctx: Annotated[SessionContext, Depends(require_session)],
 ) -> SessionContext:
     if ctx.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="admin_required"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="admin_required")
     return ctx

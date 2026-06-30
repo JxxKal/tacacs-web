@@ -50,9 +50,7 @@ async def list_users(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[User]:
     return list(
-        (await session.execute(select(User).order_by(User.sam_account_name)))
-        .scalars()
-        .all()
+        (await session.execute(select(User).order_by(User.sam_account_name))).scalars().all()
     )
 
 
@@ -60,8 +58,4 @@ async def list_users(
 async def list_ad_groups(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[ADGroup]:
-    return list(
-        (await session.execute(select(ADGroup).order_by(ADGroup.name)))
-        .scalars()
-        .all()
-    )
+    return list((await session.execute(select(ADGroup).order_by(ADGroup.name))).scalars().all())

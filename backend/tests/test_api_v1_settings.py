@@ -82,17 +82,19 @@ async def test_put_ldap_settings_persists_and_audits(
     assert r.json() == {"url": "ldaps://dc01.corp.example:636"}
 
     row = (
-        await async_db_session.execute(
-            select(SystemSetting).where(SystemSetting.key == "ldap.url")
-        )
+        await async_db_session.execute(select(SystemSetting).where(SystemSetting.key == "ldap.url"))
     ).scalar_one()
     assert row.value == "ldaps://dc01.corp.example:636"
 
     audits = (
-        await async_db_session.execute(
-            select(AuditLog).where(AuditLog.action == SETTING_LDAP_URL_UPDATED)
+        (
+            await async_db_session.execute(
+                select(AuditLog).where(AuditLog.action == SETTING_LDAP_URL_UPDATED)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(audits) == 1
     assert audits[0].summary == "ldaps://dc01.corp.example:636"
 
@@ -125,9 +127,7 @@ async def test_put_ldap_settings_overwrites_existing_row(
     )
     assert r.status_code == 200
     row = (
-        await async_db_session.execute(
-            select(SystemSetting).where(SystemSetting.key == "ldap.url")
-        )
+        await async_db_session.execute(select(SystemSetting).where(SystemSetting.key == "ldap.url"))
     ).scalar_one()
     assert row.value == "ldaps://new:636"
 
@@ -143,10 +143,14 @@ async def test_put_web_settings_persists_and_audits(
     assert r.json() == {"base_url": "https://tacacs.corp.example:8443"}
 
     audits = (
-        await async_db_session.execute(
-            select(AuditLog).where(AuditLog.action == SETTING_WEB_BASE_URL_UPDATED)
+        (
+            await async_db_session.execute(
+                select(AuditLog).where(AuditLog.action == SETTING_WEB_BASE_URL_UPDATED)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(audits) == 1
 
 

@@ -42,9 +42,7 @@ async def get_hints(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> DeviceTemplateHints:
     row = (
-        await session.execute(
-            select(SystemSetting).where(SystemSetting.key == WEB_BASE_URL_KEY)
-        )
+        await session.execute(select(SystemSetting).where(SystemSetting.key == WEB_BASE_URL_KEY))
     ).scalar_one_or_none()
     host: str | None = None
     if row is not None and row.value:

@@ -89,9 +89,7 @@ async def _secret(session: AsyncSession, key: str) -> str | None:
 
 
 async def _count(session: AsyncSession, model: type) -> int:
-    return int(
-        (await session.execute(select(func.count()).select_from(model))).scalar_one()
-    )
+    return int((await session.execute(select(func.count()).select_from(model))).scalar_one())
 
 
 async def _build_status(session: AsyncSession) -> SetupStatus:
@@ -151,9 +149,7 @@ async def _build_status(session: AsyncSession) -> SetupStatus:
             key="ldap_sync",
             done=bool(ldap_bind and ldap_base),
             required=False,
-            detail=(
-                "AD-Sync scheduled" if ldap_sync_on else "Bind DN + Base DN stored"
-            )
+            detail=("AD-Sync scheduled" if ldap_sync_on else "Bind DN + Base DN stored")
             if (ldap_bind and ldap_base)
             else None,
         )
@@ -252,9 +248,7 @@ async def complete_wizard(
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="admin_required")
     current = await _build_status(session)
     if not current.can_complete:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, detail="required_steps_incomplete"
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="required_steps_incomplete")
     row = (
         await session.execute(
             select(SystemSetting).where(SystemSetting.key == WIZARD_COMPLETED_KEY)

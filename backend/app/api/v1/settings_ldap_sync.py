@@ -157,7 +157,9 @@ def _load_status_sync() -> LdapSyncStatusRead:
             base_dns = []
         user_filter = _read(s, SETTING_USER_FILTER)
         cadence_raw = _read(s, SETTING_CADENCE)
-        cadence = int(cadence_raw) if cadence_raw and cadence_raw.isdigit() else CADENCE_DEFAULT_SECONDS
+        cadence = (
+            int(cadence_raw) if cadence_raw and cadence_raw.isdigit() else CADENCE_DEFAULT_SECONDS
+        )
         enabled = (_read(s, SETTING_ENABLED) or "false").lower() == "true"
         bind_pw_set = load_bind_password(s) is not None
         last_raw = _read(s, SETTING_LAST_RESULT)

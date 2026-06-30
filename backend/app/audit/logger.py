@@ -42,9 +42,7 @@ async def append(
 ) -> AuditLog:
     """Insert one audit row. Returns the row but does not commit."""
     if action not in ALL_ACTIONS:
-        raise ValueError(
-            f"unknown audit action {action!r}; add it to app.audit.actions"
-        )
+        raise ValueError(f"unknown audit action {action!r}; add it to app.audit.actions")
     row = AuditLog(
         ts=ts or datetime.now(UTC),
         actor_id=actor_id,

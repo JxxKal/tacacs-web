@@ -208,7 +208,7 @@ def test_render_profile_extra_av_pairs() -> None:
         extra_av_pairs={"idletime": "30", "autocmd": 'echo "hi"'},
     )
     out = render_tacprofile(p)
-    assert "set idletime = \"30\"" in out
+    assert 'set idletime = "30"' in out
     # Double-quote inside a value must be escaped.
     assert 'set autocmd = "echo \\"hi\\""' in out
 

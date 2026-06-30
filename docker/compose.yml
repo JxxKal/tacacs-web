@@ -114,7 +114,10 @@ services:
   # path of the MAVIS handler end-to-end. Not part of the production stack —
   # operators point the real AD/LDAPS endpoint at the backend instead.
   openldap:
-    image: bitnami/openldap:2.6
+    # Bitnami retired the `bitnami/openldap:2.6` tag from Docker Hub in 2025
+    # (manifest unknown); the archived image lives in the legacy registry with
+    # an identical env-var contract.
+    image: bitnamilegacy/openldap:2.6
     profiles: [integration]
     environment:
       LDAP_ADMIN_USERNAME: admin

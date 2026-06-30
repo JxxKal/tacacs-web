@@ -95,18 +95,14 @@ def _to_read(info: CertInfo, source: str) -> CertInfoRead:
 
 async def _read_source(session: AsyncSession) -> str:
     row = (
-        await session.execute(
-            select(SystemSetting).where(SystemSetting.key == TLS_SOURCE_KEY)
-        )
+        await session.execute(select(SystemSetting).where(SystemSetting.key == TLS_SOURCE_KEY))
     ).scalar_one_or_none()
     return row.value if row is not None else "bootstrap"
 
 
 async def _write_source(session: AsyncSession, value: str) -> None:
     row = (
-        await session.execute(
-            select(SystemSetting).where(SystemSetting.key == TLS_SOURCE_KEY)
-        )
+        await session.execute(select(SystemSetting).where(SystemSetting.key == TLS_SOURCE_KEY))
     ).scalar_one_or_none()
     if row is None:
         session.add(SystemSetting(key=TLS_SOURCE_KEY, value=value))
@@ -142,9 +138,7 @@ async def upload_tls(
         validate_cert_key_pair(cert_pem, key_pem)
         info = parse_cert(cert_pem)
     except CertError as exc:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     try:
         write_cert_and_key(cert_pem, key_pem)
     except OSError as exc:
@@ -186,16 +180,12 @@ async def upload_tls_pfx(
     try:
         pfx_bytes = base64.b64decode(payload.pfx_base64, validate=True)
     except (binascii.Error, ValueError) as exc:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, detail="invalid_base64"
-        ) from exc
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="invalid_base64") from exc
     try:
         cert_pem, key_pem = parse_pkcs12(pfx_bytes, payload.password)
         info = parse_cert(cert_pem)
     except CertError as exc:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     try:
         write_cert_and_key(cert_pem, key_pem)
     except OSError as exc:

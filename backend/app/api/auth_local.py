@@ -87,9 +87,7 @@ async def login_local(
     admin = (
         await session.execute(select(LocalAdmin).where(LocalAdmin.username == payload.username))
     ).scalar_one_or_none()
-    accepted = admin is not None and verify_password(
-        admin.password_argon2_hash, payload.password
-    )
+    accepted = admin is not None and verify_password(admin.password_argon2_hash, payload.password)
     cidr_ok = admin is None or _cidr_allows(admin.allowed_source_cidr, client_ip)
 
     if not accepted or not cidr_ok:
@@ -106,9 +104,7 @@ async def login_local(
         await session.commit()
         # Constant-time-ish: same error for "no such user", "wrong password",
         # "CIDR denied". Don't leak which lever failed.
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_credentials"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_credentials")
 
     assert admin is not None  # narrowed by accepted-check
     ws = await create_session(

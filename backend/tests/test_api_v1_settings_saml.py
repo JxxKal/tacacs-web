@@ -99,10 +99,14 @@ async def test_import_idp_metadata_persists_and_audits(
     assert stored.value == "https://idp.example.com/saml"
 
     audits = (
-        await async_db_session.execute(
-            select(AuditLog).where(AuditLog.action == SAML_IDP_METADATA_IMPORTED)
+        (
+            await async_db_session.execute(
+                select(AuditLog).where(AuditLog.action == SAML_IDP_METADATA_IMPORTED)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(audits) == 1
 
 
@@ -141,10 +145,14 @@ async def test_update_mapping_persists(
     assert len(body["role_mappings"]) == 2
 
     audits = (
-        await async_db_session.execute(
-            select(AuditLog).where(AuditLog.action == SAML_MAPPING_UPDATED)
+        (
+            await async_db_session.execute(
+                select(AuditLog).where(AuditLog.action == SAML_MAPPING_UPDATED)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(audits) == 1
 
 
@@ -180,10 +188,14 @@ async def test_regenerate_keypair_persists_and_audits(
     assert "BEGIN PRIVATE KEY" in key_row.value
 
     audits = (
-        await async_db_session.execute(
-            select(AuditLog).where(AuditLog.action == SAML_SP_KEYPAIR_REGENERATED)
+        (
+            await async_db_session.execute(
+                select(AuditLog).where(AuditLog.action == SAML_SP_KEYPAIR_REGENERATED)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(audits) == 1
 
 

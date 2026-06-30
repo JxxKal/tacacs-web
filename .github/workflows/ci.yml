@@ -23,19 +23,23 @@ jobs:
           enable-cache: true
 
       - name: install
-        run: uv pip install --system -e ".[dev]"
+        # Install from uv.lock so tool versions (ruff, mypy, pytest) are
+        # pinned and deterministic. `uv pip install -e ".[dev]"` ignored the
+        # lock and pulled the newest ruff, whose format rules drifted from
+        # the locked version and turned CI red repo-wide.
+        run: uv sync --frozen --extra dev
 
       - name: ruff check
-        run: ruff check .
+        run: uv run ruff check .
 
       - name: ruff format check
-        run: ruff format --check .
+        run: uv run ruff format --check .
 
       - name: mypy
-        run: mypy
+        run: uv run mypy
 
       - name: pytest
-        run: pytest -q
+        run: uv run pytest -q
 
   frontend:
     runs-on: ubuntu-24.04

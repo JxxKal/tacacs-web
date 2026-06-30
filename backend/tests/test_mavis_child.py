@@ -107,7 +107,9 @@ def test_handle_auth_attaches_profile_via_info_piggyback(
         captured.append((username, nas_ip))
         return "ACK", None, "{ profile { script { permit } } }"
 
-    monkeypatch.setattr(mc, "call_backend_auth", lambda u, p, *, nas_ip="", opener=None: ("ACK", None))
+    monkeypatch.setattr(
+        mc, "call_backend_auth", lambda u, p, *, nas_ip="", opener=None: ("ACK", None)
+    )
     monkeypatch.setattr(mc, "call_backend_info", fake_info)
     out = _capture_response(
         mc,
@@ -128,7 +130,9 @@ def test_handle_auth_skips_info_piggyback_without_nas_ip(
 ) -> None:
     """If somehow AV_SERVERIP isn't set, AUTH still returns ACK but no
     profile (rather than crashing on the empty nas_ip)."""
-    monkeypatch.setattr(mc, "call_backend_auth", lambda u, p, *, nas_ip="", opener=None: ("ACK", None))
+    monkeypatch.setattr(
+        mc, "call_backend_auth", lambda u, p, *, nas_ip="", opener=None: ("ACK", None)
+    )
 
     def fake_info_must_not_run(*_a: object, **_k: object) -> tuple[str, str | None, str | None]:
         raise AssertionError("call_backend_info should not run without nas_ip")
@@ -139,21 +143,21 @@ def test_handle_auth_skips_info_piggyback_without_nas_ip(
     assert mc.AV_TACPROFILE not in out
 
 
-def test_handle_auth_nak_no_profile(
-    mc: ModuleType, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(mc, "call_backend_auth", lambda u, p, *, nas_ip="", opener=None: ("NAK", "wrong_password"))
+def test_handle_auth_nak_no_profile(mc: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        mc, "call_backend_auth", lambda u, p, *, nas_ip="", opener=None: ("NAK", "wrong_password")
+    )
     out = _capture_response(mc, {mc.AV_TACTYPE: "AUTH", mc.AV_USER: "jan", mc.AV_PASSWORD: "x"})
     assert out[mc.AV_RESULT] == "NAK"
     assert mc.AV_TACPROFILE not in out
 
 
-def test_handle_info_ack_attaches_profile(
-    mc: ModuleType, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_handle_info_ack_attaches_profile(mc: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
     captured: list[tuple[str, str]] = []
 
-    def fake_info(username: str, nas_ip: str, *, opener: object | None = None) -> tuple[str, str | None, str | None]:
+    def fake_info(
+        username: str, nas_ip: str, *, opener: object | None = None
+    ) -> tuple[str, str | None, str | None]:
         captured.append((username, nas_ip))
         return "ACK", None, "{ profile { script { permit } } }"
 
@@ -167,9 +171,7 @@ def test_handle_info_ack_attaches_profile(
     assert captured == [("jan", "10.1.2.3")]
 
 
-def test_handle_info_nak_no_profile(
-    mc: ModuleType, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_handle_info_nak_no_profile(mc: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         mc,
         "call_backend_info",

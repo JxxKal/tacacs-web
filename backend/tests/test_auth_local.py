@@ -74,9 +74,7 @@ async def test_login_success_sets_session_cookie_and_audits(
     assert r.status_code == 200
     assert r.json()["username"] == "admin"
 
-    rows = (
-        await async_db_session.execute(select(AuditLog).order_by(AuditLog.id))
-    ).scalars().all()
+    rows = (await async_db_session.execute(select(AuditLog).order_by(AuditLog.id))).scalars().all()
     actions = [r.action for r in rows]
     assert AUTH_LOGIN_SUCCEEDED in actions
     assert AUTH_LOGIN_FAILED not in actions
@@ -91,10 +89,14 @@ async def test_login_wrong_password_returns_401_and_audits(
     assert SESSION_COOKIE_NAME not in client.cookies
 
     rows = (
-        await async_db_session.execute(
-            select(AuditLog).where(AuditLog.action == AUTH_LOGIN_FAILED)
+        (
+            await async_db_session.execute(
+                select(AuditLog).where(AuditLog.action == AUTH_LOGIN_FAILED)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(rows) == 1
     assert rows[0].summary == "bad_password"
 
@@ -119,10 +121,14 @@ async def test_login_cidr_restriction_denies_outside_range(
     assert r.status_code == 401
 
     rows = (
-        await async_db_session.execute(
-            select(AuditLog).where(AuditLog.action == AUTH_LOGIN_FAILED)
+        (
+            await async_db_session.execute(
+                select(AuditLog).where(AuditLog.action == AUTH_LOGIN_FAILED)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(rows) == 1
     assert rows[0].summary == "cidr_denied"
 
@@ -143,10 +149,10 @@ async def test_logout_revokes_session_and_clears_cookie(
     assert r.status_code == 401
 
     rows = (
-        await async_db_session.execute(
-            select(AuditLog).where(AuditLog.action == AUTH_LOGOUT)
-        )
-    ).scalars().all()
+        (await async_db_session.execute(select(AuditLog).where(AuditLog.action == AUTH_LOGOUT)))
+        .scalars()
+        .all()
+    )
     assert len(rows) == 1
 
 
@@ -161,9 +167,7 @@ def test_api_v1_requires_session(client: TestClient) -> None:
     assert r.status_code == 401
 
 
-async def test_api_v1_works_after_login(
-    client: TestClient, async_db_session: AsyncSession
-) -> None:
+async def test_api_v1_works_after_login(client: TestClient, async_db_session: AsyncSession) -> None:
     await _seed_admin(async_db_session)
     r = client.post("/login/local", json={"username": "admin", "password": "hunter2-hunter2"})
     assert r.status_code == 200

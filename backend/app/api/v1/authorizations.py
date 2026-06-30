@@ -62,9 +62,7 @@ async def list_authorizations(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[Authorization]:
     return list(
-        (await session.execute(select(Authorization).order_by(Authorization.id)))
-        .scalars()
-        .all()
+        (await session.execute(select(Authorization).order_by(Authorization.id))).scalars().all()
     )
 
 
@@ -83,9 +81,7 @@ async def create_authorization(
     if await session.get(DeviceGroup, payload.device_group_id) is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="unknown_device_group_id")
     if await session.get(PrivilegeProfile, payload.privilege_profile_id) is None:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, detail="unknown_privilege_profile_id"
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="unknown_privilege_profile_id")
 
     row = Authorization(
         principal_user_id=payload.principal_user_id,
@@ -107,9 +103,11 @@ async def create_authorization(
         else f"ad_group#{payload.principal_ad_group_id}"
     )
     await append_crud(
-        session, ctx,
+        session,
+        ctx,
         action=AUTHORIZATION_CREATED,
-        target_type="authorization", target_id=row.id,
+        target_type="authorization",
+        target_id=row.id,
         summary=(
             f"{principal_desc} -> dg#{payload.device_group_id} "
             f"profile#{payload.privilege_profile_id}"
@@ -145,16 +143,15 @@ async def delete_authorization(
         if row.principal_user_id is not None
         else f"ad_group#{row.principal_ad_group_id}"
     )
-    summary = (
-        f"{principal_desc} -> dg#{row.device_group_id} "
-        f"profile#{row.privilege_profile_id}"
-    )
+    summary = f"{principal_desc} -> dg#{row.device_group_id} profile#{row.privilege_profile_id}"
     row_id = row.id
     await session.delete(row)
     await append_crud(
-        session, ctx,
+        session,
+        ctx,
         action=AUTHORIZATION_DELETED,
-        target_type="authorization", target_id=row_id,
+        target_type="authorization",
+        target_id=row_id,
         summary=summary,
     )
     await session.commit()

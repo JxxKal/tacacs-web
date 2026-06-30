@@ -150,10 +150,14 @@ async def test_upload_persists_and_audits(
     assert KEY_FILE.read_bytes() == key_pem
 
     audits = (
-        await async_db_session.execute(
-            select(AuditLog).where(AuditLog.action == TLS_CERT_UPLOADED)
+        (
+            await async_db_session.execute(
+                select(AuditLog).where(AuditLog.action == TLS_CERT_UPLOADED)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(audits) == 1
     assert audits[0].summary is not None
     assert audits[0].summary.startswith("uploaded.example")
@@ -205,10 +209,14 @@ async def test_regenerate_self_signed_writes_and_audits(
     assert CERT_FILE.exists() and KEY_FILE.exists()
 
     audits = (
-        await async_db_session.execute(
-            select(AuditLog).where(AuditLog.action == TLS_CERT_REGENERATED)
+        (
+            await async_db_session.execute(
+                select(AuditLog).where(AuditLog.action == TLS_CERT_REGENERATED)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(audits) == 1
 
 
@@ -248,10 +256,14 @@ async def test_upload_pfx_with_password_persists_and_audits(
     assert b"BEGIN PRIVATE KEY" in KEY_FILE.read_bytes()
 
     audits = (
-        await async_db_session.execute(
-            select(AuditLog).where(AuditLog.action == TLS_PFX_UPLOADED)
+        (
+            await async_db_session.execute(
+                select(AuditLog).where(AuditLog.action == TLS_PFX_UPLOADED)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(audits) == 1
     assert audits[0].summary is not None
     assert audits[0].summary.startswith("PFX: pfx.example")

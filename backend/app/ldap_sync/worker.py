@@ -92,9 +92,7 @@ def load_config(session: Session) -> LdapSyncConfig | None:
     if not (url and bind_dn and base_dns_raw):
         return None
     try:
-        base_dns = tuple(
-            entry for entry in json.loads(base_dns_raw) if isinstance(entry, str)
-        )
+        base_dns = tuple(entry for entry in json.loads(base_dns_raw) if isinstance(entry, str))
     except json.JSONDecodeError:
         return None
     if not base_dns:
@@ -118,9 +116,7 @@ def load_config(session: Session) -> LdapSyncConfig | None:
 
 def load_bind_password(session: Session) -> str | None:
     row = (
-        session.execute(
-            select(SystemSecret).where(SystemSecret.key == SECRET_BIND_PASSWORD)
-        )
+        session.execute(select(SystemSecret).where(SystemSecret.key == SECRET_BIND_PASSWORD))
     ).scalar_one_or_none()
     return row.value if row is not None else None
 
@@ -133,9 +129,7 @@ def test_connection(
     timeout_s: int = 5,
 ) -> None:
     """Open one LDAPS bind and immediately tear it down. Raises SyncRunError on failure."""
-    server = Server(
-        url, use_ssl=url.lower().startswith("ldaps://"), connect_timeout=timeout_s
-    )
+    server = Server(url, use_ssl=url.lower().startswith("ldaps://"), connect_timeout=timeout_s)
     try:
         conn = Connection(
             server,
@@ -213,9 +207,7 @@ def persist_error_summary(error: str, *, started: datetime | None = None) -> Non
 def _persist_summary(session: Session, summary: LdapSyncRunSummary) -> None:
     payload = json.dumps(asdict(summary))
     row = (
-        session.execute(
-            select(SystemSetting).where(SystemSetting.key == SETTING_LAST_RESULT)
-        )
+        session.execute(select(SystemSetting).where(SystemSetting.key == SETTING_LAST_RESULT))
     ).scalar_one_or_none()
     if row is None:
         session.add(SystemSetting(key=SETTING_LAST_RESULT, value=payload))

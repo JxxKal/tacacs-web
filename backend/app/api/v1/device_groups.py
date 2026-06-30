@@ -66,9 +66,11 @@ async def create_device_group(
         await session.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, detail="name_already_exists") from exc
     await append_crud(
-        session, ctx,
+        session,
+        ctx,
         action=DEVICE_GROUP_CREATED,
-        target_type="device_group", target_id=row.id,
+        target_type="device_group",
+        target_id=row.id,
         summary=row.name,
     )
     await session.commit()
@@ -110,9 +112,11 @@ async def update_device_group(
         await session.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, detail="name_already_exists") from exc
     await append_crud(
-        session, ctx,
+        session,
+        ctx,
         action=DEVICE_GROUP_UPDATED,
-        target_type="device_group", target_id=row.id,
+        target_type="device_group",
+        target_id=row.id,
         summary=f"{row.name}: {', '.join(changed) or 'no-op'}",
     )
     await session.commit()
@@ -132,9 +136,11 @@ async def delete_device_group(
     name, row_id = row.name, row.id
     await session.delete(row)
     await append_crud(
-        session, ctx,
+        session,
+        ctx,
         action=DEVICE_GROUP_DELETED,
-        target_type="device_group", target_id=row_id,
+        target_type="device_group",
+        target_id=row_id,
         summary=name,
     )
     try:
@@ -142,6 +148,4 @@ async def delete_device_group(
     except IntegrityError as exc:
         # FK from device / authorization -> device_group is RESTRICT.
         await session.rollback()
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, detail="device_group_in_use"
-        ) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="device_group_in_use") from exc

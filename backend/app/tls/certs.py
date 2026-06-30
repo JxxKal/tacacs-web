@@ -84,9 +84,7 @@ def parse_pkcs12(data: bytes, password: str | None) -> tuple[bytes, bytes]:
     if bundle.key is None:
         raise CertError("PFX did not contain a private key")
 
-    parts: list[bytes] = [
-        bundle.cert.certificate.public_bytes(serialization.Encoding.PEM)
-    ]
+    parts: list[bytes] = [bundle.cert.certificate.public_bytes(serialization.Encoding.PEM)]
     for additional in bundle.additional_certs:
         parts.append(additional.certificate.public_bytes(serialization.Encoding.PEM))
     chain_pem = b"".join(parts)
@@ -154,9 +152,7 @@ def write_cert_and_key(cert_pem: bytes, key_pem: bytes) -> None:
 def generate_self_signed(common_name: str, *, days: int = 825) -> tuple[bytes, bytes]:
     """Issue a fresh self-signed RSA-2048 cert + key pair. Returns PEMs."""
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    subject = issuer = x509.Name(
-        [x509.NameAttribute(NameOID.COMMON_NAME, common_name)]
-    )
+    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, common_name)])
     now = datetime.now(UTC)
     cert = (
         x509.CertificateBuilder()
@@ -191,9 +187,7 @@ def _first_cn(name: x509.Name) -> str | None:
 
 def _san_dns_names(cert: x509.Certificate) -> list[str]:
     try:
-        san_ext = cert.extensions.get_extension_for_oid(
-            ExtensionOID.SUBJECT_ALTERNATIVE_NAME
-        )
+        san_ext = cert.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
     except x509.ExtensionNotFound:
         return []
     san_value = san_ext.value

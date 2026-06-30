@@ -87,9 +87,11 @@ async def create_privilege_profile(
         await session.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, detail="name_already_exists") from exc
     await append_crud(
-        session, ctx,
+        session,
+        ctx,
         action=PRIVILEGE_PROFILE_CREATED,
-        target_type="privilege_profile", target_id=row.id,
+        target_type="privilege_profile",
+        target_id=row.id,
         summary=f"{row.name} priv-lvl={row.tacacs_priv_lvl}",
     )
     await session.commit()
@@ -143,9 +145,11 @@ async def update_privilege_profile(
         await session.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, detail="name_already_exists") from exc
     await append_crud(
-        session, ctx,
+        session,
+        ctx,
         action=PRIVILEGE_PROFILE_UPDATED,
-        target_type="privilege_profile", target_id=row.id,
+        target_type="privilege_profile",
+        target_id=row.id,
         summary=f"{row.name}: {', '.join(changed) or 'no-op'}",
     )
     await session.commit()
@@ -165,15 +169,15 @@ async def delete_privilege_profile(
     name, row_id = row.name, row.id
     await session.delete(row)
     await append_crud(
-        session, ctx,
+        session,
+        ctx,
         action=PRIVILEGE_PROFILE_DELETED,
-        target_type="privilege_profile", target_id=row_id,
+        target_type="privilege_profile",
+        target_id=row_id,
         summary=name,
     )
     try:
         await session.commit()
     except IntegrityError as exc:
         await session.rollback()
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, detail="profile_in_use"
-        ) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="profile_in_use") from exc

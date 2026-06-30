@@ -56,9 +56,7 @@ def _entries(count: int, start: int = 0) -> list[dict]:
 
 def test_paged_search_streams_every_page() -> None:
     conn = _FakeConn([_entries(500), _entries(250, start=500)])
-    results = list(
-        _paged_search(conn, "DC=corp", "(objectClass=user)", ["sAMAccountName"], 500)
-    )
+    results = list(_paged_search(conn, "DC=corp", "(objectClass=user)", ["sAMAccountName"], 500))
     assert len(results) == 750
     kw = conn.standard.last_kwargs
     assert kw is not None

@@ -48,9 +48,7 @@ class LocalAdmin(Base):
     )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    __table_args__ = (
-        CheckConstraint("id = 1", name="local_admin_singleton"),
-    )
+    __table_args__ = (CheckConstraint("id = 1", name="local_admin_singleton"),)
 
 
 class WebSession(Base):
@@ -101,9 +99,7 @@ class AuditLog(Base):
     __tablename__ = "audit_log"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    ts: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, nullable=False
-    )
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     actor_id: Mapped[int | None] = mapped_column(Integer)
     actor_username_snapshot: Mapped[str] = mapped_column(String(256), nullable=False)
     actor_role: Mapped[str] = mapped_column(String(16), nullable=False)

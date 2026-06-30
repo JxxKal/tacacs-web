@@ -47,9 +47,7 @@ class AccountingRecord(Base):
     __tablename__ = "accounting_record"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    ts: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, nullable=False
-    )
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     # Identity-ish columns: queried often, indexed.
     nas_ip: Mapped[str | None] = mapped_column(String(64))
     username: Mapped[str | None] = mapped_column(String(256))
@@ -66,14 +64,10 @@ class AccountingRecord(Base):
     # Optional FK to the Device row whose IP the daemon recorded as
     # `nas_ip`. NULLed out on Device delete so retained accounting rows
     # survive a Device being decommissioned.
-    device_id: Mapped[int | None] = mapped_column(
-        ForeignKey("device.id", ondelete="SET NULL")
-    )
+    device_id: Mapped[int | None] = mapped_column(ForeignKey("device.id", ondelete="SET NULL"))
     # Full AV payload as a flat string->string map. Lets operators
     # debug custom attributes without us having to schema every AV.
-    raw_av_pairs: Mapped[dict[str, str]] = mapped_column(
-        JSON, nullable=False, default=dict
-    )
+    raw_av_pairs: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False, default=dict)
 
     __table_args__ = (
         Index("ix_accounting_record_ts", "ts"),

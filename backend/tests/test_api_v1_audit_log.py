@@ -128,13 +128,9 @@ async def test_lists_newest_first_with_total(
     ]
 
 
-async def test_filter_by_action(
-    admin_client: TestClient, async_db_session: AsyncSession
-) -> None:
+async def test_filter_by_action(admin_client: TestClient, async_db_session: AsyncSession) -> None:
     await _seed(async_db_session)
-    r = admin_client.get(
-        f"/api/v1/audit-log?action={TACACS_AUTHN_FAILED}"
-    )
+    r = admin_client.get(f"/api/v1/audit-log?action={TACACS_AUTHN_FAILED}")
     assert r.status_code == 200
     body = r.json()
     assert body["total"] == 1
@@ -154,9 +150,7 @@ async def test_filter_by_auth_method_and_username(
         assert "jakaluza" in e["actor_username_snapshot"]
 
 
-async def test_pagination(
-    admin_client: TestClient, async_db_session: AsyncSession
-) -> None:
+async def test_pagination(admin_client: TestClient, async_db_session: AsyncSession) -> None:
     await _seed(async_db_session)
     r = admin_client.get("/api/v1/audit-log?limit=2&offset=2")
     assert r.status_code == 200

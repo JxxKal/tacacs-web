@@ -33,9 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import AccountingRecord, Device, SystemSetting
 from app.db.session import SessionLocal
 
-ACCT_LOG_PATH = Path(
-    os.environ.get("TACACS_WEB_ACCT_LOG", "/var/log/tac_plus-ng/accounting.log")
-)
+ACCT_LOG_PATH = Path(os.environ.get("TACACS_WEB_ACCT_LOG", "/var/log/tac_plus-ng/accounting.log"))
 SETTING_OFFSET = "accounting.log_offset"
 
 _TASK: asyncio.Task[None] | None = None
@@ -137,9 +135,7 @@ def _parse_ts(raw: str) -> datetime:
 
 async def _load_offset(session: AsyncSession) -> int:
     row = (
-        await session.execute(
-            select(SystemSetting).where(SystemSetting.key == SETTING_OFFSET)
-        )
+        await session.execute(select(SystemSetting).where(SystemSetting.key == SETTING_OFFSET))
     ).scalar_one_or_none()
     if row is None or not row.value.isdigit():
         return 0
@@ -148,9 +144,7 @@ async def _load_offset(session: AsyncSession) -> int:
 
 async def _save_offset(session: AsyncSession, offset: int) -> None:
     row = (
-        await session.execute(
-            select(SystemSetting).where(SystemSetting.key == SETTING_OFFSET)
-        )
+        await session.execute(select(SystemSetting).where(SystemSetting.key == SETTING_OFFSET))
     ).scalar_one_or_none()
     if row is None:
         session.add(SystemSetting(key=SETTING_OFFSET, value=str(offset)))

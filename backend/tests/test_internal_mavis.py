@@ -109,9 +109,7 @@ def _patch_verifier(monkeypatch: pytest.MonkeyPatch, fn: Callable[..., bool]) ->
 def test_unknown_user_returns_nfd() -> None:
     _install_session([None, None])
     with TestClient(app) as client:
-        response = client.post(
-            "/internal/mavis/auth", json={"username": "ghost", "password": "x"}
-        )
+        response = client.post("/internal/mavis/auth", json={"username": "ghost", "password": "x"})
     assert response.status_code == 200
     assert response.json() == {"result": "NFD", "reason": "unknown_user"}
 
@@ -120,9 +118,7 @@ def test_endpoint_not_configured_returns_err() -> None:
     user = User(sam_account_name="jan", distinguished_name="cn=jan,dc=x", enabled=True)
     _install_session([user, None])
     with TestClient(app) as client:
-        response = client.post(
-            "/internal/mavis/auth", json={"username": "jan", "password": "x"}
-        )
+        response = client.post("/internal/mavis/auth", json={"username": "jan", "password": "x"})
     assert response.status_code == 200
     assert response.json() == {"result": "ERR", "reason": "ldap_not_configured"}
 
@@ -146,9 +142,7 @@ def test_wrong_password_returns_nak(monkeypatch: pytest.MonkeyPatch) -> None:
     _install_session([user, setting])
     _patch_verifier(monkeypatch, lambda *_args, **_kw: False)
     with TestClient(app) as client:
-        response = client.post(
-            "/internal/mavis/auth", json={"username": "jan", "password": "nope"}
-        )
+        response = client.post("/internal/mavis/auth", json={"username": "jan", "password": "nope"})
     assert response.status_code == 200
     assert response.json() == {"result": "NAK", "reason": "wrong_password"}
 
@@ -156,9 +150,7 @@ def test_wrong_password_returns_nak(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_empty_username_rejected_by_validation() -> None:
     # The handler should never be called; pydantic rejects the payload first.
     with TestClient(app) as client:
-        response = client.post(
-            "/internal/mavis/auth", json={"username": "", "password": "x"}
-        )
+        response = client.post("/internal/mavis/auth", json={"username": "", "password": "x"})
     assert response.status_code == 422
 
 
@@ -277,9 +269,7 @@ async def test_auth_matches_username_case_insensitively(
             enabled=True,
         )
     )
-    async_db_session.add(
-        SystemSetting(key="ldap.url", value="ldaps://dc1.corp.example:636")
-    )
+    async_db_session.add(SystemSetting(key="ldap.url", value="ldaps://dc1.corp.example:636"))
     await async_db_session.commit()
 
     async def _override() -> AsyncIterator[AsyncSession]:

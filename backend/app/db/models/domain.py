@@ -65,15 +65,9 @@ class PrivilegeProfile(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     tacacs_priv_lvl: Mapped[int] = mapped_column(Integer, nullable=False)
-    permit_commands_regex: Mapped[list[str]] = mapped_column(
-        JSON, nullable=False, default=list
-    )
-    deny_commands_regex: Mapped[list[str]] = mapped_column(
-        JSON, nullable=False, default=list
-    )
-    extra_av_pairs: Mapped[dict[str, str]] = mapped_column(
-        JSON, nullable=False, default=dict
-    )
+    permit_commands_regex: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    deny_commands_regex: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    extra_av_pairs: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False, default=dict)
     description: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False

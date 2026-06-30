@@ -109,9 +109,7 @@ async def _seed(async_db_session: AsyncSession) -> None:
     await async_db_session.commit()
 
 
-async def test_lists_newest_first(
-    admin_client: TestClient, async_db_session: AsyncSession
-) -> None:
+async def test_lists_newest_first(admin_client: TestClient, async_db_session: AsyncSession) -> None:
     await _seed(async_db_session)
     r = admin_client.get("/api/v1/accounting")
     assert r.status_code == 200
@@ -144,9 +142,7 @@ async def test_filter_cmd_substring(
     assert body["entries"][0]["cmd"] == "show running-config"
 
 
-async def test_filter_nas_ip(
-    admin_client: TestClient, async_db_session: AsyncSession
-) -> None:
+async def test_filter_nas_ip(admin_client: TestClient, async_db_session: AsyncSession) -> None:
     await _seed(async_db_session)
     r = admin_client.get("/api/v1/accounting?nas_ip=10.0.0.2")
     assert r.status_code == 200

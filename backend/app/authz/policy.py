@@ -56,10 +56,7 @@ def evaluate_for_user(
         if auth.principal_user_id == user.id:
             candidates.append(auth)
             continue
-        if (
-            auth.principal_ad_group_id is not None
-            and auth.principal_ad_group_id in user_group_ids
-        ):
+        if auth.principal_ad_group_id is not None and auth.principal_ad_group_id in user_group_ids:
             candidates.append(auth)
 
     if not candidates:

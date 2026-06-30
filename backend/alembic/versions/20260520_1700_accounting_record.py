@@ -54,9 +54,7 @@ def upgrade() -> None:
         ),
     )
     op.create_index("ix_accounting_record_ts", "accounting_record", ["ts"])
-    op.create_index(
-        "ix_accounting_record_username", "accounting_record", ["username"]
-    )
+    op.create_index("ix_accounting_record_username", "accounting_record", ["username"])
     op.create_index("ix_accounting_record_nas_ip", "accounting_record", ["nas_ip"])
     op.create_index("ix_accounting_record_task_id", "accounting_record", ["task_id"])
     op.create_index("ix_accounting_record_action", "accounting_record", ["action"])

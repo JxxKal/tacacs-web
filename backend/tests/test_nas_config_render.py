@@ -38,7 +38,9 @@ def test_render_device_during_rotation_emits_both_keys() -> None:
 
 
 def test_render_skips_devices_without_current_secret() -> None:
-    out = render_host_blocks([_device(name="provisioned", current="x"), _device(name="empty", current=None, id_=2)])
+    out = render_host_blocks(
+        [_device(name="provisioned", current="x"), _device(name="empty", current=None, id_=2)]
+    )
     assert "host provisioned {" in out
     assert "host empty" not in out
 

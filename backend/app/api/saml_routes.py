@@ -71,9 +71,7 @@ def _client_ip(request: Request) -> str | None:
     return request.client.host if request.client else None
 
 
-def _resolve_role(
-    group_values: list[str], mappings: tuple[tuple[str, str], ...]
-) -> str | None:
+def _resolve_role(group_values: list[str], mappings: tuple[tuple[str, str], ...]) -> str | None:
     """Find the highest-precedence role from `mappings` that matches.
 
     First entry wins (mapping order is operator-controlled in the UI).
@@ -99,12 +97,8 @@ async def saml_login(
     try:
         cfg = await load_saml_config(session)
     except SamlNotConfigured as exc:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, detail=f"saml_not_configured: {exc}"
-        ) from exc
-    auth = build_auth_for_request(
-        cfg, request_data=_request_data(request, cfg.base_url)
-    )
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=f"saml_not_configured: {exc}") from exc
+    auth = build_auth_for_request(cfg, request_data=_request_data(request, cfg.base_url))
     target = auth.login(return_to=f"{cfg.base_url}/")
     return RedirectResponse(target, status_code=302)
 
@@ -116,9 +110,7 @@ async def saml_metadata(
     try:
         cfg = await load_saml_config(session)
     except SamlNotConfigured as exc:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, detail=f"saml_not_configured: {exc}"
-        ) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=f"saml_not_configured: {exc}") from exc
     xml = sp_metadata_xml(cfg)
     return Response(content=xml, media_type="application/samlmetadata+xml")
 
@@ -136,13 +128,9 @@ async def saml_acs(
     try:
         cfg = await load_saml_config(session)
     except SamlNotConfigured as exc:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, detail=f"saml_not_configured: {exc}"
-        ) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=f"saml_not_configured: {exc}") from exc
 
-    auth = build_auth_for_request(
-        cfg, request_data=_request_data(request, cfg.base_url, post_data)
-    )
+    auth = build_auth_for_request(cfg, request_data=_request_data(request, cfg.base_url, post_data))
     auth.process_response()
     errors = auth.get_errors()
     if errors or not auth.is_authenticated():
@@ -157,9 +145,7 @@ async def saml_acs(
             user_agent=user_agent,
         )
         await session.commit()
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED, detail="saml_validation_failed"
-        )
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="saml_validation_failed")
 
     name_id = auth.get_nameid() or "<unknown>"
     attrs = auth.get_attributes()
@@ -180,9 +166,7 @@ async def saml_acs(
             user_agent=user_agent,
         )
         await session.commit()
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, detail="no_role_mapping"
-        )
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="no_role_mapping")
 
     ws = await create_session(
         session,

@@ -143,9 +143,7 @@ async def get_saml_status(
     idp_entity = await _read_setting(session, SETTING_IDP_ENTITY_ID)
     idp_sso = await _read_setting(session, SETTING_IDP_SSO_URL)
     idp_cert = await _read_setting(session, SETTING_IDP_X509_CERT)
-    group_attr = (
-        await _read_setting(session, SETTING_GROUP_ATTRIBUTE) or SAML_GROUP_ATTR_DEFAULT
-    )
+    group_attr = await _read_setting(session, SETTING_GROUP_ATTRIBUTE) or SAML_GROUP_ATTR_DEFAULT
     raw_mappings = await _read_setting(session, SETTING_ROLE_MAPPINGS) or "[]"
     try:
         mappings_data = json.loads(raw_mappings)
@@ -157,9 +155,7 @@ async def get_saml_status(
         if isinstance(m, dict) and m.get("role") in {"admin", "operator", "viewer"}
     ]
 
-    configured = bool(
-        base_url and sp_cert and sp_key and idp_entity and idp_sso and idp_cert
-    )
+    configured = bool(base_url and sp_cert and sp_key and idp_entity and idp_sso and idp_cert)
 
     return SamlStatusRead(
         configured=configured,
@@ -284,8 +280,6 @@ async def get_sp_metadata(
     try:
         cfg: SamlConfig = await load_saml_config(session)
     except SamlNotConfigured as exc:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, detail=f"saml_not_configured: {exc}"
-        ) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=f"saml_not_configured: {exc}") from exc
     xml = sp_metadata_xml(cfg)
     return Response(content=xml, media_type="application/samlmetadata+xml")

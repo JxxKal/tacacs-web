@@ -86,10 +86,7 @@ async def list_effective_permissions(
     for auth in candidates:
         by_dg.setdefault(auth.device_group_id, []).append(auth)
 
-    dgs = {
-        dg.id: dg
-        for dg in (await session.execute(select(DeviceGroup))).scalars().all()
-    }
+    dgs = {dg.id: dg for dg in (await session.execute(select(DeviceGroup))).scalars().all()}
 
     out: list[EffectivePermissionRead] = []
     for dg_id, dg_candidates in by_dg.items():
@@ -157,9 +154,7 @@ async def my_access(
         if user is None and "@" in username:
             user = (
                 await session.execute(
-                    select(User)
-                    .options(selectinload(User.groups))
-                    .where(User.upn.ilike(username))
+                    select(User).options(selectinload(User.groups)).where(User.upn.ilike(username))
                 )
             ).scalar_one_or_none()
 
@@ -182,15 +177,9 @@ async def my_access(
     for auth in candidates:
         by_dg.setdefault(auth.device_group_id, []).append(auth)
 
-    dgs = {
-        dg.id: dg
-        for dg in (await session.execute(select(DeviceGroup))).scalars().all()
-    }
+    dgs = {dg.id: dg for dg in (await session.execute(select(DeviceGroup))).scalars().all()}
     profiles = {
-        pp.id: pp
-        for pp in (
-            await session.execute(select(PrivilegeProfile))
-        ).scalars().all()
+        pp.id: pp for pp in (await session.execute(select(PrivilegeProfile))).scalars().all()
     }
 
     out: list[MyAccessGroupRead] = []
@@ -201,12 +190,14 @@ async def my_access(
             continue
         prof = profiles.get(winner.privilege_profile_id)
         devices = (
-            await session.execute(
-                select(Device)
-                .where(Device.device_group_id == dg_id)
-                .order_by(Device.name)
+            (
+                await session.execute(
+                    select(Device).where(Device.device_group_id == dg_id).order_by(Device.name)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         previews = [
             _DeviceRead(id=d.id, name=d.name, ip_or_cidr=d.ip_or_cidr)
             for d in devices[:MY_ACCESS_DEVICE_PREVIEW]

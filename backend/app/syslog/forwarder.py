@@ -122,11 +122,7 @@ def format_rfc5424(record: AccountingRecord, cfg: SyslogConfig) -> str:
     """Render one accounting record as an RFC5424 line (no framing)."""
     pri = cfg.facility * 8 + SEVERITY_INFO
     # RFC5424 TIMESTAMP: ISO-8601 with TZ, millisecond precision.
-    ts = (
-        record.ts.replace(tzinfo=UTC)
-        if record.ts.tzinfo is None
-        else record.ts.astimezone(UTC)
-    )
+    ts = record.ts.replace(tzinfo=UTC) if record.ts.tzinfo is None else record.ts.astimezone(UTC)
     timestamp = ts.strftime("%Y-%m-%dT%H:%M:%S.") + f"{ts.microsecond // 1000:03d}Z"
 
     sd_parts: list[str] = []
@@ -169,11 +165,7 @@ def format_rfc5424_audit(row: AuditLog, cfg: SyslogConfig) -> str:
     """
     severity = SEVERITY_WARNING if row.action in _WARNING_ACTIONS else SEVERITY_INFO
     pri = cfg.facility * 8 + severity
-    ts = (
-        row.ts.replace(tzinfo=UTC)
-        if row.ts.tzinfo is None
-        else row.ts.astimezone(UTC)
-    )
+    ts = row.ts.replace(tzinfo=UTC) if row.ts.tzinfo is None else row.ts.astimezone(UTC)
     timestamp = ts.strftime("%Y-%m-%dT%H:%M:%S.") + f"{ts.microsecond // 1000:03d}Z"
 
     sd_parts: list[str] = [_sd_param("action", row.action)]
@@ -192,11 +184,7 @@ def format_rfc5424_audit(row: AuditLog, cfg: SyslogConfig) -> str:
     sd = "[audit@tacacs-web " + " ".join(sd_parts) + "]"
 
     summary = row.summary or row.action
-    msg = (
-        f"{row.actor_username_snapshot}: {summary}"
-        if row.actor_username_snapshot
-        else summary
-    )
+    msg = f"{row.actor_username_snapshot}: {summary}" if row.actor_username_snapshot else summary
 
     header = f"<{pri}>1 {timestamp} {cfg.hostname} {cfg.app_name} - audit"
     return f"{header} {sd} {msg}"
@@ -255,9 +243,7 @@ async def load_config(session: AsyncSession) -> SyslogConfig:
         facility = DEFAULT_FACILITY
     app_name = await _read_setting(session, SETTING_APP_NAME) or "tacacs-web"
     hostname = await _read_setting(session, SETTING_HOSTNAME) or "tacacs-web"
-    tls_verify = (
-        await _read_setting(session, SETTING_TLS_VERIFY) or "true"
-    ).lower() == "true"
+    tls_verify = (await _read_setting(session, SETTING_TLS_VERIFY) or "true").lower() == "true"
     return SyslogConfig(
         enabled=enabled,
         host=host,
@@ -366,7 +352,7 @@ def send_test_message(cfg: SyslogConfig) -> None:
     ts = now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
     msg = (
         f"<{pri}>1 {ts} {cfg.hostname} {cfg.app_name} - test "
-        f"[acct@tacacs-web test=\"connectivity\"] tacacs-web syslog reachability test"
+        f'[acct@tacacs-web test="connectivity"] tacacs-web syslog reachability test'
     )
     _send_lines(cfg, [msg])
 
@@ -413,21 +399,29 @@ async def _process_one_batch() -> int:
         last_audit_raw = await _read_setting(s, SETTING_LAST_AUDIT_ID) or "0"
         last_audit = int(last_audit_raw) if last_audit_raw.isdigit() else 0
         audit_rows = (
-            await s.execute(
-                select(AuditLog)
-                .where(AuditLog.id > last_audit)
-                .order_by(AuditLog.id)
-                .limit(BATCH_SIZE)
+            (
+                await s.execute(
+                    select(AuditLog)
+                    .where(AuditLog.id > last_audit)
+                    .order_by(AuditLog.id)
+                    .limit(BATCH_SIZE)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         acct_rows = (
-            await s.execute(
-                select(AccountingRecord)
-                .where(AccountingRecord.id > last_acct)
-                .order_by(AccountingRecord.id)
-                .limit(BATCH_SIZE)
+            (
+                await s.execute(
+                    select(AccountingRecord)
+                    .where(AccountingRecord.id > last_acct)
+                    .order_by(AccountingRecord.id)
+                    .limit(BATCH_SIZE)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
     if not audit_rows and not acct_rows:
         return 0

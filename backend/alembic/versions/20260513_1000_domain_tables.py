@@ -40,7 +40,9 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("name", sa.String(128), nullable=False),
         sa.Column("tacacs_priv_lvl", sa.Integer(), nullable=False),
-        sa.Column("permit_commands_regex", sa.JSON(), nullable=False, server_default=sa.text("'[]'")),
+        sa.Column(
+            "permit_commands_regex", sa.JSON(), nullable=False, server_default=sa.text("'[]'")
+        ),
         sa.Column("deny_commands_regex", sa.JSON(), nullable=False, server_default=sa.text("'[]'")),
         sa.Column("extra_av_pairs", sa.JSON(), nullable=False, server_default=sa.text("'{}'")),
         sa.Column("description", sa.Text(), nullable=True),

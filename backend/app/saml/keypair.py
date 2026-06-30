@@ -47,9 +47,7 @@ def generate_sp_keypair(common_name: str) -> tuple[bytes, bytes]:
     Returns (cert_pem, key_pem). Both bytes, PEM-encoded.
     """
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    subject = issuer = x509.Name(
-        [x509.NameAttribute(NameOID.COMMON_NAME, common_name)]
-    )
+    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, common_name)])
     now = datetime.now(UTC)
     cert = (
         x509.CertificateBuilder()
@@ -78,9 +76,7 @@ def parse_idp_metadata(xml: str) -> IdpMetadata:
         raise InvalidIdpMetadata(f"not XML: {exc}") from exc
 
     if not root.tag.endswith("EntityDescriptor"):
-        raise InvalidIdpMetadata(
-            f"expected EntityDescriptor at the root, got {root.tag}"
-        )
+        raise InvalidIdpMetadata(f"expected EntityDescriptor at the root, got {root.tag}")
     entity_id = root.attrib.get("entityID")
     if not entity_id:
         raise InvalidIdpMetadata("missing entityID attribute")

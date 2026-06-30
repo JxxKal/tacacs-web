@@ -46,10 +46,7 @@ def test_parse_record_quoted_command() -> None:
 
 def test_parse_record_empty_optionals() -> None:
     # Console session: no port, no nac.
-    line = (
-        "2026-05-20T17:00:00+00:00\t10.0.0.1\troot\t\t\t"
-        "deadbeef\tstart\tservice=shell"
-    )
+    line = "2026-05-20T17:00:00+00:00\t10.0.0.1\troot\t\t\tdeadbeef\tstart\tservice=shell"
     rec = parse_record(line)
     assert rec is not None
     assert rec["port"] is None
@@ -57,10 +54,7 @@ def test_parse_record_empty_optionals() -> None:
 
 
 def test_parse_record_unix_epoch_ts() -> None:
-    line = (
-        "1716224400\t10.0.0.1\tjan\tvty0\t10.0.0.50\t"
-        "0a00b00c\tstart\tservice=shell"
-    )
+    line = "1716224400\t10.0.0.1\tjan\tvty0\t10.0.0.50\t0a00b00c\tstart\tservice=shell"
     rec = parse_record(line)
     assert rec is not None
     ts = rec["ts"]
@@ -70,8 +64,7 @@ def test_parse_record_unix_epoch_ts() -> None:
 
 def test_parse_record_ctime_ts() -> None:
     line = (
-        "Tue May 20 17:00:00 2026\t10.0.0.1\tjan\tvty0\t10.0.0.50\t"
-        "0a00b00c\tstart\tservice=shell"
+        "Tue May 20 17:00:00 2026\t10.0.0.1\tjan\tvty0\t10.0.0.50\t0a00b00c\tstart\tservice=shell"
     )
     rec = parse_record(line)
     assert rec is not None
@@ -80,8 +73,10 @@ def test_parse_record_ctime_ts() -> None:
 
 def test_parse_record_args_tab_separated() -> None:
     # tac_plus-ng sometimes joins ${args} with tabs instead of spaces.
-    line = "2026-05-20T17:00:00+00:00\t10.0.0.1\tjan\tvty0\t10.0.0.50\t" \
+    line = (
+        "2026-05-20T17:00:00+00:00\t10.0.0.1\tjan\tvty0\t10.0.0.50\t"
         "0a00b00c\tstart\tservice=shell\tcmd=show\tpriv-lvl=15"
+    )
     rec = parse_record(line)
     assert rec is not None
     assert rec["av_pairs"] == {

@@ -90,9 +90,7 @@ async def load_saml_config(session: AsyncSession) -> SamlConfig:
     if not (sp_cert and sp_key):
         raise SamlNotConfigured("SP keypair has not been generated yet")
 
-    group_attr = (
-        await _read_setting(session, SETTING_GROUP_ATTRIBUTE) or SAML_GROUP_ATTR_DEFAULT
-    )
+    group_attr = await _read_setting(session, SETTING_GROUP_ATTRIBUTE) or SAML_GROUP_ATTR_DEFAULT
     raw_mappings = await _read_setting(session, SETTING_ROLE_MAPPINGS) or "[]"
     try:
         decoded = json.loads(raw_mappings)
@@ -128,9 +126,7 @@ def sp_acs_url(base_url: str) -> str:
 def _strip_pem_armor(pem: str) -> str:
     """python3-saml wants the cert / key with the BEGIN/END lines stripped."""
     lines = [
-        line.strip()
-        for line in pem.splitlines()
-        if line.strip() and not line.startswith("-----")
+        line.strip() for line in pem.splitlines() if line.strip() and not line.startswith("-----")
     ]
     return "".join(lines)
 

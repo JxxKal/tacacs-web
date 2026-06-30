@@ -80,9 +80,7 @@ async def mavis_auth(
 ) -> AuthResponse:
     user = (
         await session.execute(
-            select(User).where(
-                func.lower(User.sam_account_name) == req.username.lower()
-            )
+            select(User).where(func.lower(User.sam_account_name) == req.username.lower())
         )
     ).scalar_one_or_none()
     endpoint = await resolve_ldap_endpoint(session)
@@ -177,9 +175,7 @@ async def _resolve_info(
     authorizations = (
         (
             await session.execute(
-                select(Authorization).where(
-                    Authorization.device_group_id == device.device_group_id
-                )
+                select(Authorization).where(Authorization.device_group_id == device.device_group_id)
             )
         )
         .scalars()

@@ -26,9 +26,7 @@ from app.db.models import LocalAdmin
 from app.db.session import SessionLocal
 
 
-async def _bootstrap_admin(
-    username: str, password: str, *, reset_password: bool
-) -> int:
+async def _bootstrap_admin(username: str, password: str, *, reset_password: bool) -> int:
     async with SessionLocal() as session:
         existing = (
             await session.execute(select(LocalAdmin).where(LocalAdmin.id == 1))
@@ -56,16 +54,12 @@ async def _bootstrap_admin(
         existing.username = username
         existing.password_argon2_hash = hash_password(password)
         await session.commit()
-        await _audit(
-            session, LOCAL_ADMIN_PASSWORD_RESET, username, "password reset via CLI"
-        )
+        await _audit(session, LOCAL_ADMIN_PASSWORD_RESET, username, "password reset via CLI")
         print(f"local admin {username!r} password reset")
         return 0
 
 
-async def _audit(
-    session: AsyncSession, action: str, username: str, summary: str
-) -> None:
+async def _audit(session: AsyncSession, action: str, username: str, summary: str) -> None:
     await audit_append(
         session,
         actor_username_snapshot=username,

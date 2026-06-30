@@ -40,9 +40,7 @@ async def _regen(session: AsyncSession) -> None:
     except OSError as exc:
         import structlog
 
-        structlog.get_logger("nas_config").warning(
-            "nas_config.regen_write_failed", error=str(exc)
-        )
+        structlog.get_logger("nas_config").warning("nas_config.regen_write_failed", error=str(exc))
 
 
 def _validate_ip_or_cidr(value: str) -> str:
@@ -122,9 +120,7 @@ class DeviceRead(BaseModel):
 
 async def _ensure_device_group_exists(session: AsyncSession, device_group_id: int) -> None:
     if await session.get(DeviceGroup, device_group_id) is None:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, detail="unknown_device_group_id"
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="unknown_device_group_id")
 
 
 @router.get("", response_model=list[DeviceRead])
@@ -154,13 +150,13 @@ async def create_device(
         await session.flush()
     except IntegrityError as exc:
         await session.rollback()
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, detail="name_or_ip_already_exists"
-        ) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="name_or_ip_already_exists") from exc
     await append_crud(
-        session, ctx,
+        session,
+        ctx,
         action=DEVICE_CREATED,
-        target_type="device", target_id=row.id,
+        target_type="device",
+        target_id=row.id,
         summary=f"{row.name} {row.ip_or_cidr}",
     )
     await session.commit()
@@ -212,13 +208,13 @@ async def update_device(
         await session.flush()
     except IntegrityError as exc:
         await session.rollback()
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, detail="name_or_ip_already_exists"
-        ) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="name_or_ip_already_exists") from exc
     await append_crud(
-        session, ctx,
+        session,
+        ctx,
         action=DEVICE_UPDATED,
-        target_type="device", target_id=row.id,
+        target_type="device",
+        target_id=row.id,
         summary=f"{row.name}: {', '.join(changed) or 'no-op'}",
     )
     await session.commit()
@@ -239,9 +235,11 @@ async def delete_device(
     name, row_id, ip = row.name, row.id, row.ip_or_cidr
     await session.delete(row)
     await append_crud(
-        session, ctx,
+        session,
+        ctx,
         action=DEVICE_DELETED,
-        target_type="device", target_id=row_id,
+        target_type="device",
+        target_id=row_id,
         summary=f"{name} {ip}",
     )
     await session.commit()
@@ -270,9 +268,11 @@ async def rotate_secret(
     row.previous_retired_at = None
     row.current_secret_enc = payload.new_secret
     await append_crud(
-        session, ctx,
+        session,
+        ctx,
         action=DEVICE_SECRET_ROTATED,
-        target_type="device", target_id=row.id,
+        target_type="device",
+        target_id=row.id,
         summary=row.name,
     )
     await session.commit()
@@ -293,9 +293,11 @@ async def retire_previous_secret(
     row.previous_secret_enc = None
     row.previous_retired_at = datetime.now(tz=row.updated_at.tzinfo if row.updated_at else None)
     await append_crud(
-        session, ctx,
+        session,
+        ctx,
         action=DEVICE_PREVIOUS_RETIRED,
-        target_type="device", target_id=row.id,
+        target_type="device",
+        target_id=row.id,
         summary=row.name,
     )
     await session.commit()

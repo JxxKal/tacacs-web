@@ -75,9 +75,7 @@ class Settings(BaseSettings):
                 return raw
             decoded = base64.b64decode(raw.strip())
             if len(decoded) != 32:
-                raise ValueError(
-                    "master_key_file must contain 32 bytes (raw or base64-encoded)"
-                )
+                raise ValueError("master_key_file must contain 32 bytes (raw or base64-encoded)")
             return decoded
         if self.master_key_b64 is not None:
             decoded = base64.b64decode(self.master_key_b64.strip())

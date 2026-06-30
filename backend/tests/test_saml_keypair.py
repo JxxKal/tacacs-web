@@ -55,9 +55,7 @@ def test_parse_idp_metadata_falls_back_to_post_binding() -> None:
 
 
 def test_parse_idp_metadata_requires_certificate() -> None:
-    without_cert = VALID_METADATA.replace(
-        "<md:KeyDescriptor", "<md:KeyDescriptor-stripped"
-    )
+    without_cert = VALID_METADATA.replace("<md:KeyDescriptor", "<md:KeyDescriptor-stripped")
     with pytest.raises(InvalidIdpMetadata):
         parse_idp_metadata(without_cert)
 
