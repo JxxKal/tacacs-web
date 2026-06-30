@@ -19,7 +19,9 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.audit import append as audit_append
 from app.audit.actions import AUTH_LOGIN_FAILED, AUTH_LOGIN_SUCCEEDED
@@ -29,6 +31,7 @@ from app.auth.sessions import (
     create_session,
 )
 from app.core.config import settings
+from app.db.models import User
 from app.db.session import get_session
 from app.saml import (
     SamlNotConfigured,
@@ -89,6 +92,29 @@ def _resolve_role(
             if value.startswith(f"cn={ad_group.lower()},"):
                 return role
     return None
+
+
+async def _synced_group_dns(
+    session: AsyncSession, sam_account_name: str
+) -> list[str] | None:
+    """Group DNs of the SAML user from the AD-synced tables, or None if unknown.
+
+    FortiAuthenticator authenticates the user but does not reliably carry AD
+    group memberships in the assertion, so we resolve the role from the same
+    locally-synced `user`/`ad_group` data that drives MAVIS authorization
+    rather than from a SAML attribute. Returns None when the user is absent
+    from the sync (or disabled) — distinct from "synced but in no group".
+    """
+    user = (
+        await session.execute(
+            select(User)
+            .options(selectinload(User.groups))
+            .where(func.lower(User.sam_account_name) == sam_account_name.lower())
+        )
+    ).scalar_one_or_none()
+    if user is None or not user.enabled:
+        return None
+    return [g.distinguished_name for g in user.groups]
 
 
 @router.get("/login")
@@ -162,27 +188,30 @@ async def saml_acs(
         )
 
     name_id = auth.get_nameid() or "<unknown>"
-    attrs = auth.get_attributes()
-    group_values: list[str] = attrs.get(cfg.group_attribute, []) or []
-    if isinstance(group_values, str):
-        group_values = [group_values]
 
-    role = _resolve_role(group_values, cfg.role_mappings)
+    # Group memberships come from the AD-synced DB (keyed by sAMAccountName =
+    # the SAML NameID), not from a SAML attribute — the IdP authenticates the
+    # user but does not reliably carry group claims in the assertion.
+    group_values = await _synced_group_dns(session, name_id)
+    role = (
+        _resolve_role(group_values, cfg.role_mappings)
+        if group_values is not None
+        else None
+    )
     if role is None:
+        detail = "user_not_synced" if group_values is None else "no_role_mapping"
         await audit_append(
             session,
             actor_username_snapshot=name_id,
             actor_role="unknown",
             auth_method="saml",
             action=AUTH_LOGIN_FAILED,
-            summary=f"no_role_mapping; groups={group_values!r}",
+            summary=f"{detail}; groups={group_values!r}",
             client_ip=client_ip,
             user_agent=user_agent,
         )
         await session.commit()
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, detail="no_role_mapping"
-        )
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail=detail)
 
     ws = await create_session(
         session,
