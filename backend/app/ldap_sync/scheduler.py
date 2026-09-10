@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from sqlalchemy.exc import IntegrityError
 
 from app.db.session import SyncSessionLocal
 from app.ldap_sync.worker import (
@@ -117,6 +118,12 @@ def _run_once_sync() -> None:
         except SyncRunError:
             session.rollback()
             raise
+        except IntegrityError as exc:
+            # Surface constraint violations (duplicate sAMAccountName / objectGUID)
+            # as a readable run error instead of "unexpected: IntegrityError(...)".
+            session.rollback()
+            detail = getattr(exc, "orig", None) or exc
+            raise SyncRunError(f"DB constraint violation during sync: {detail}") from exc
         session.commit()
         _log.info(
             "ad_sync.completed",

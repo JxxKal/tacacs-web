@@ -16,11 +16,12 @@ def _record(
     dn: str | None = None,
     groups: tuple[ADGroupRecord, ...] = (),
     upn: str | None = None,
+    guid: str | None = None,
 ) -> ADUserRecord:
     return ADUserRecord(
         sam_account_name=sam,
         distinguished_name=dn or f"CN={sam},OU=People,DC=corp,DC=tld",
-        ad_object_guid=None,
+        ad_object_guid=guid,
         upn=upn or f"{sam}@corp.tld",
         display_name=sam.title(),
         groups=groups,
@@ -107,3 +108,45 @@ def test_group_membership_changes_replace_edges(db_session: Session) -> None:
         db_session.execute(select(UserADGroup).where(UserADGroup.user_id == jan.id)).scalars().all()
     )
     assert len(edges) == 1
+
+
+def test_renamed_user_is_matched_by_guid(db_session: Session) -> None:
+    """An AD rename keeps the objectGUID; the row must follow instead of duplicating."""
+    guid = "541acedd-3ba1-4a02-8185-c4434206d09b"
+    run_sync(session=db_session, users=[_record("jan.old", guid=guid)])
+
+    result = run_sync(session=db_session, users=[_record("jan.new", guid=guid)])
+
+    assert result.users_inserted == 0
+    assert result.users_updated == 1
+    rows = db_session.execute(select(User)).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].sam_account_name == "jan.new"
+    assert rows[0].ad_object_guid == guid
+    assert rows[0].enabled is True
+
+
+def test_sam_account_name_match_is_case_insensitive(db_session: Session) -> None:
+    """AD compares sAMAccountName case-insensitively; a case change is not a new user."""
+    run_sync(session=db_session, users=[_record("JKaluza")])
+
+    result = run_sync(session=db_session, users=[_record("jkaluza")])
+
+    assert result.users_inserted == 0
+    assert result.users_updated == 1
+    rows = db_session.execute(select(User)).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].sam_account_name == "jkaluza"
+
+
+def test_guid_wins_over_sam_when_both_could_match(db_session: Session) -> None:
+    """Row synced without GUID, later AD delivers the GUID: attach it, no second row."""
+    run_sync(session=db_session, users=[_record("jan")])
+    guid = "0f8fad5b-d9cb-469f-a165-70867728950e"
+
+    result = run_sync(session=db_session, users=[_record("jan", guid=guid)])
+
+    assert result.users_inserted == 0
+    rows = db_session.execute(select(User)).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].ad_object_guid == guid
